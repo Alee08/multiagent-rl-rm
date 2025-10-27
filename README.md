@@ -31,7 +31,7 @@ Follow instructions in the docker folder.
 Below is a compact end-to-end example for two agents in the Frozen Lake environment, each with its own Reward Machine (RM) and tabular Q-learning.
 
 ### Step 1: Environment Setup
-First, import the necessary modules and initialize the MultiAgentFrozenLake environment with desired parameters such as grid size and hole locations.
+First, import the necessary modules and initialize the `MultiAgentFrozenLake` environment with desired parameters such as grid size and hole locations.
 In the above code, `holes` represents the coordinates of obstacles within the grid that the agents must avoid. This setup provides a simple yet challenging environment for agents to learn navigation strategies.
 ```python
 from multiagent_rlrm.environments.frozen_lake.ma_frozen_lake import MultiAgentFrozenLake
@@ -85,6 +85,7 @@ for a in (a1, a2):
 
 
 ### Step 3: Define Reward Machines (one per agent)
+You define the task as a small automaton (the Reward Machine). The `PositionEventDetector` turns grid visits into events; here, reaching (4,4) triggers a transition from q0→q1 (+0), then reaching (0,0) triggers q1→qf (+1, final). Each agent gets its own RM (rm1, rm2), so progress and rewards are tracked independently even in the same environment. This cleanly separates what should be achieved (waypoints/sequence) from how the agent moves in a stochastic world, and you can extend it by adding more waypoints, branches, or different detectors.
 
 ```python
 from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
@@ -106,6 +107,7 @@ a2.set_reward_machine(rm2)
 
 
 ### Step4: Wrap env with RM and set learners
+Wrap the base environment with `RMEnvironmentWrapper` so RM logic is applied automatically at every step: it detects events, updates each agent’s RM state, and merges env reward + RM reward (and termination). The learner’s state size must include RM states `(W*H*rm.numbers_state())`, because policies depend on both position and RM progress. Assign a separate Q-learning instance per agent. Optional knobs: use_qrm=True for counterfactual RM updates and `use_rsh=True` for potential-based shaping.
 
 ```python
 from multiagent_rlrm.multi_agent.wrappers.rm_environment_wrapper import RMEnvironmentWrapper
@@ -129,6 +131,8 @@ a2.set_learning_algorithm(make_ql(rm2))
 ```
 
 ### Step5: Training Loop
+Standard episodic loop. On each episode, reset initializes env + each agent’s RM state. Every step: each agent picks an action from the raw env state; the wrapped env executes them, detects events, and returns env+RM rewards plus per-agent termination flags. Then each agent calls update_policy(...) to learn from `(s, a, r, s')` (the learner/encoder handle RM progress internally). The loop stops when all agents are done (hole/time-limit or final RM state).
+
 ```python
 import copy
 
