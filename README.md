@@ -6,20 +6,23 @@ The Multi-Agent RLRM (Reinforcement Learning with Reward Machines) Framework is 
 
 ## Installation
 
+### Option A — PyPI (recommended)
+
+```bash
+pip install multiagent-rl-rm
+```
+import path: multiagent_rlrm (underscore).
+
+### Option B — From source (for development)
+
 To install the framework, follow these steps:
 
-1. Clone the GitHub repository:
-
-   ```bash
-   git clone https://github.com/Alee08/multi-agent-rl-rm.git
-
-2. Navigate to the project directory and install the dependencies (if applicable):
-    ```bash 
-    cd multi-agent-rl-rm
-    pip install -r requirements.txt
-3. Install the package in development mode to make changes to the code and have them immediately reflected without needing to reinstall the package:
-    ```bash 
-   pip install -e .
+```bash
+git clone https://github.com/Alee08/multi-agent-rl-rm.git
+cd multi-agent-rl-rm
+pip install -r requirements.txt
+pip install -e .
+```
 
 
 ## Installation with docker
