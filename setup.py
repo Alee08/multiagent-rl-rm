@@ -6,7 +6,7 @@ import multiagent_rlrm
 long_description = "Multi-Agent RLRM: A library that makes it easy to formulate multi-agent problems and to resolve by reinforcement learning."
 
 setup(
-    name="multiagent_rlrm",
+    name="multiagent-rl-rm",
     version="0.1",
     # version=multiagent_rlrm.__version__,
     description="Multi-Agent RLRM Framework",
