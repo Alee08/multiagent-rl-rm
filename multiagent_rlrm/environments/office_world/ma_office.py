@@ -128,19 +128,18 @@ class MultiAgentOfficeWorld(BaseEnvironment):
             current_statee = self.get_state(agent)
 
             ag_intended_action = actions[agent.name]  # action chosen by the agent
-            # learning_algorithm = agent.get_learning_algorithm()
 
             # Calculate the penalty for walls
-            wall_penalty, final_action = self.apply_wall_penalty(
-                agent, ag_intended_action
+            wall_penalty, final_action_name = self.apply_wall_penalty(
+                agent, ag_intended_action.name
             )
 
             # If the environment is stochastic and the action is not "wait", apply stochastic effects
-            if self.stochastic and final_action.name != "wait":
-                final_action = self.get_stochastic_action(agent, final_action)
+            if self.stochastic and final_action_name != "wait":
+                final_action_name = self.get_stochastic_action(agent, final_action_name)
 
-            # Esegui l'azione finale
-            agent.execute_action(final_action)
+            # Apply the selected action directly (no Agent.execute_action)
+            self.apply_action(agent, final_action_name)
 
             new_state = self.get_state(agent)
             # state_rm = agent.reward_machine.get_current_state()
@@ -250,6 +249,28 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         current_state = agent.get_state()
         return current_state.copy()
 
+    def apply_action(self, agent, action_name: str):
+        """
+        Applies a deterministic movement to the agent based on the given action
+        name. Boundary checks and wall collisions are handled using the helper
+        predicates from `config_office.py`.
+
+        :param agent: Agent to move.
+        :param action_name: Name of the action ("up", "down", "left", "right", or "wait").
+        """
+        x, y = agent.get_position()
+
+        if action_name == "up" and can_move_up(agent):
+            y += 1
+        elif action_name == "down" and can_move_down(agent):
+            y -= 1
+        elif action_name == "left" and can_move_left(agent):
+            x -= 1
+        elif action_name == "right" and can_move_right(agent):
+            x += 1
+
+        agent.set_position(x, y)
+
     def is_wall_collision(self, agent, action_name):
         if action_name == "wait":
             return False  # "wait" non dovrebbe causare collisioni
@@ -263,7 +284,7 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         }
         return not action_validity_map[action_name]
 
-    def apply_wall_penalty(self, agent, intended_action):
+    def apply_wall_penalty(self, agent, intended_action_name):
         """
         Applies a penalty if the agent's action results in a collision with a wall.
         Terminates the agent's episode if `terminate_hit_walls` is set to True.
@@ -273,11 +294,11 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         :return: A tuple containing the penalty value and the corrected action
                  (e.g., "wait" in case of a collision).
         """
-        if self.is_wall_collision(agent, intended_action.name):
+        if self.is_wall_collision(agent, intended_action_name):
             if self.terminate_hit_walls:
                 self.agent_fail[agent.name] = True  # Episode ends for the agent
-            return self.wall_penalty_value, self.wait_action
-        return 0, intended_action
+            return self.wall_penalty_value, self.wait_action.name
+        return 0, intended_action_name
 
     def get_action_probability_mapping(self):
         """
@@ -319,7 +340,7 @@ class MultiAgentOfficeWorld(BaseEnvironment):
                 "down": (["down", "left", "right"], [hp, lp, lp]),
             }
 
-    def get_stochastic_action(self, agent, intended_action):
+    def get_stochastic_action(self, agent, intended_action_name):
         """
         Determines the stochastic outcome of the agent's intended action.
 
@@ -328,12 +349,9 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         :return: The actual action executed, based on stochastic probabilities.
         """
         action_map = self.get_action_probability_mapping()
-        actions, probabilities = action_map[intended_action.name]
+        actions, probabilities = action_map[intended_action_name]
         chosen_action = self.rng.choice(actions, p=probabilities)
-        if chosen_action != "wait":
-            return agent.action(chosen_action)
-        else:
-            return self.wait_action
+        return chosen_action
 
         # -------------------------------------------------------------------------------------------
         # Metodi generici per rendere get_mdp generale e non dipendente da x,y,q_rm direttamente

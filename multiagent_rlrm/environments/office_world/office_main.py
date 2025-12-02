@@ -10,6 +10,9 @@ from multiagent_rlrm.render.render import EnvironmentRenderer
 from multiagent_rlrm.environments.office_world.state_encoder_office import (
     StateEncoderOfficeWorld,
 )
+from multiagent_rlrm.environments.office_world.action_encoder_office_world import (
+    ActionEncoderOfficeWorld,
+)
 from multiagent_rlrm.environments.office_world.ma_office import (
     MultiAgentOfficeWorld,
 )
@@ -429,8 +432,9 @@ def setup_environment(args):
 
     assign_learning_algorithm(env, agent, algo_creator, args.seed)
 
-    for action in agent_config["actions"]:
-        agent.add_action(action)
+    # Register symbolic movement actions via the Office World encoder
+    # (the environment handles dynamics in `apply_action`).
+    agent.add_action_encoder(ActionEncoderOfficeWorld(agent))
 
     env.add_agent(agent)
     rm_env = RMEnvironmentWrapper(env, [agent])

@@ -5,7 +5,10 @@ from multiagent_rlrm.utils.utils import parse_office_world
 # This section defines the actions available to agents, including preconditions and effects.
 # Actions dictate how agents can interact with the environment.
 
-# Actions
+# Actions are defined symbolically; movement dynamics are handled directly by
+# the environment (see `apply_action` in `ma_office.py`).
+
+
 def can_move_up(agent):
     x, y = agent.get_position()
     return (
@@ -32,32 +35,11 @@ def can_move_right(agent):
     )
 
 
-# Definizione degli effetti intenzionali (gestiti poi stocasticamente dall'ambiente)
-def effect_up(agent):
-    if can_move_up(agent):
-        agent.set_position(agent.get_position()[0], agent.get_position()[1] + 1)
-
-
-def effect_down(agent):
-    if can_move_down(agent):
-        agent.set_position(agent.get_position()[0], agent.get_position()[1] - 1)
-
-
-def effect_left(agent):
-    if can_move_left(agent):
-        agent.set_position(agent.get_position()[0] - 1, agent.get_position()[1])
-
-
-def effect_right(agent):
-    if can_move_right(agent):
-        agent.set_position(agent.get_position()[0] + 1, agent.get_position()[1])
-
-
-# Creazione delle azioni
-move_up = ActionRL("up", [can_move_up], [effect_up])
-move_down = ActionRL("down", [can_move_down], [effect_down])
-move_left = ActionRL("left", [can_move_left], [effect_left])
-move_right = ActionRL("right", [can_move_right], [effect_right])
+# Creating actions (symbolic only; the environment handles preconditions)
+move_up = ActionRL("up")
+move_down = ActionRL("down")
+move_left = ActionRL("left")
+move_right = ActionRL("right")
 
 
 config = {
@@ -516,7 +498,7 @@ QL and QRM:
 QRMAX:
 - action_space_size = 4
 - gamma = 0.99
-- nsamplesTE = 60  # Transition Environment - threshold to consider a transition (s, a) known in the environment
+- nsamplesTE = 39  # Transition Environment - threshold to consider a transition (s, a) known in the environment
 - nsamplesRE = 1  # Reward Environment - threshold to consider the reward associated with a pair (s, a) known in the environment
 - nsamplesTQ = 1  # Transition for Q - threshold to consider a state transition of the Reward Machine automaton (q, s') known given a pair (s, a)
 - nsamplesRQ = 1  # Reward for Q - threshold to consider the reward associated with a transition of the Reward Machine automaton (q, s', q')
