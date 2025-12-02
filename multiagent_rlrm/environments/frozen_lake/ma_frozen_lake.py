@@ -5,7 +5,6 @@ from multiagent_rlrm.learning_algorithms.qlearning_lambda import QLearningLambda
 from multiagent_rlrm.learning_algorithms.qlearning import QLearning
 from multiagent_rlrm.multi_agent.base_environment import BaseEnvironment
 
-# from building_RM import RM_dict, RM_dict_true, RM_dict_true_seq
 random.seed(a=123)
 np.random.seed(123)
 
@@ -14,137 +13,200 @@ class MultiAgentFrozenLake(BaseEnvironment):
     metadata = {"name": "multi_agent_frozen_lake"}
 
     def __init__(self, width, height, holes):
-        # Passa i valori di epsilon al costruttore della classe base
+        """
+        Multi-agent Frozen Lake environment.
+
+        :param width: Grid width.
+        :param height: Grid height.
+        :param holes: List of grid positions representing holes.
+        """
         super().__init__(width, height)
-        self.holes = holes  # Liste delle posizioni dei buchi
+        self.holes = holes  # Hole positions on the grid
         self.possible_actions = ["up", "down", "left", "right"]
         self.rewards = 0
-        self.frozen_lake = False
-        self.penalty_amount = 0
+        self.frozen_lake_stochastic = False  # Whether actions are stochastic
+        self.penalty_amount = 0  # Penalty when falling into a hole
         self.active_agents = {agent.name: True for agent in self.agents}
         self.agent_fail = {agent.name: False for agent in self.agents}
         self.agent_steps = {agent.name: 0 for agent in self.agents}
-        self.delay_action = False  # Aggiunto attributo per il delay delle azioni
+        self.delay_action = False  # Enables delayed (wait) stochastic transitions
+        self.epsilon = None
 
     def reset(self, seed=123, options=None):
-        """Reset set the environment to a starting point."""
+        """
+        Reset the environment to its initial state.
+
+        Resets:
+        - Rewards for each agent
+        - Agent active/fail states
+        - Agent step counters
+        - Each agent’s position and internal state (e.g., Reward Machine)
+        """
         self.rewards = {agent.name: 0 for agent in self.agents}
-        self.epsilon = max(self.epsilon_end, self.epsilon_decay * self.epsilon)
         self.timestep = 0
-        # self.agent_states = {agent.name: {} for agent in self.agents}
         self.active_agents = {agent.name: True for agent in self.agents}
         self.agent_fail = {agent.name: False for agent in self.agents}
         self.agent_steps = {agent.name: 0 for agent in self.agents}
 
         for agent in self.agents:
-            agent.reset()  # reset della RM, messaggi e state dell'agente
-            l_algo = agent.get_learning_algorithm()
-            if isinstance(l_algo, QLearningLambda):
-                l_algo.reset_e_table()  # Se è ql_lambda
-            initial_position = (
-                agent.get_state()
-            )  # Assumi che get_state ritorni un dizionario con pos_x e pos_y
+            # Reset agent to starting position (0, 0)
+            agent.set_initial_position(0, 0)
+            agent.reset()  # Reset internal RM and states
 
+            l_algo = agent.get_learning_algorithm()
+
+            # For Q(λ), clear the eligibility traces
+            if isinstance(l_algo, QLearningLambda):
+                l_algo.reset_e_table()
+
+            # Initial state returned by agent
+            initial_position = agent.get_state()
+
+            # Signal end-of-episode for plain Q-learning (if needed)
             if isinstance(l_algo, QLearning):
                 l_algo.learn_done_episode()
-            # self.agent_states[agent.name] = initial_position
-            # agent.get_learning_algorithm().update_epsilon()
-            # l_algo.learn_init()
-            # l_algo.learn_init_episode()
-            # l_algo.learn_done_episode()
 
-        # observations = self.agent_states
-        # Get dummy infos
+        # Dummy info dict for initialization
         infos = {agent: {} for agent in self.agents}
         observations = {agent.name: agent.state for agent in self.agents}
 
         return observations, infos
 
     def step(self, actions):
+        """
+        Executes one environment step for all agents.
+
+        :param actions: Dict mapping agent names to chosen actions.
+        :return: (observations, rewards, terminations, truncations, infos)
+        """
         self.rewards = {a.name: 0 for a in self.agents}
         infos = {a.name: {} for a in self.agents}
+
         for agent in self.agents:
             if not self.active_agents[agent.name]:
+                # Provide fallback info for inactive agents
+                infos[agent.name]["prev_s"] = self.get_state(agent)
+                infos[agent.name]["s"] = self.get_state(agent)
+                infos[agent.name]["Renv"] = 0
                 continue
-            current_statee = self.get_state(agent)
 
-            ag_action = actions[agent.name]  # azione scelta dall'agente
-            # learning_algorithm = agent.get_learning_algorithm()
+            current_state = self.get_state(agent)
+            ag_action = actions[agent.name]  # Chosen action object
 
-            if self.frozen_lake:
-                action = self.get_stochastic_action(agent, ag_action.name)
-                if action != "wait":
-                    agent.execute_action(action)
-                else:
-                    pass
+            # Apply the action (deterministic or stochastic)
+            if self.frozen_lake_stochastic:
+                chosen_name = self.get_stochastic_action(agent, ag_action.name)
+                if chosen_name != "wait":
+                    self.apply_action(agent, chosen_name)
             else:
-                agent.execute_action(ag_action)
+                self.apply_action(agent, ag_action.name)
 
             new_state = self.get_state(agent)
-            # state_rm = agent.reward_machine.get_current_state()
 
-            # Calcola la penalità se l'agente finisce su un buco
+            # Environmental reward from holes
             reward_env = self.holes_in_the_ice(new_state, agent.name)
-
-            # reward_rm = agent.get_reward_machine().step(new_state)  # Chiamata alla RM per ottenere la ricompensa
-            # reward_rm = agent.get_reward_machine().get_reward(event)
-            # reward = reward_rm + reward_env
             reward = reward_env
-            # new_state_rm = agent.reward_machine.get_current_state()
 
             self.rewards[agent.name] += reward
-            # Memorizza i due stati della RM per questo agente per l'uso nell'aggiornamento della politica
-            # agent.rm_state = state_rm
-            # agent.next_rm_state = new_state_rm
-
-            # Incrementa il conteggio dei passi per l'agente attivo
             self.agent_steps[agent.name] += 1
-            # Aggiorna `infos` con gli stati precedenti e correnti
-            infos[agent.name]["prev_s"] = current_statee
-            # infos[agent.name]["prev_q"] = state_rm
+
+            # Log transition info
+            infos[agent.name]["prev_s"] = current_state
             infos[agent.name]["s"] = new_state
-            # infos[agent.name]["q"] = new_state_rm
             infos[agent.name]["Renv"] = reward_env
-            # infos[agent.name]["RQ"] = reward_rm
+
         self.timestep += 1
-        # Aggiorna le informazioni di termination e troncamento per tutti gli agenti
+
+        # Determine terminations and truncations
         terminations, truncations = self.check_terminations()
 
-        # Update active_agents based on terminations and truncations
+        # Mark inactive agents
         for agent_name in terminations:
             if terminations[agent_name]:
                 self.active_agents[agent_name] = False
 
-        # Restituisci le osservazioni, le ricompense, le terminazioni, i troncamenti e le informazioni aggiornate
         observations = {agent.name: agent.state for agent in self.agents}
-        # print("aaa", observations, self.rewards, terminations, truncations, infos)
+
         return observations, self.rewards, terminations, truncations, infos
 
     def holes_in_the_ice(self, state, agent_name):
+        """
+        Returns the penalty if an agent falls into a hole.
+
+        :param state: Agent state (must include pos_x, pos_y)
+        :param agent_name: Name of the agent
+        :return: Penalty or 0
+        """
         agent_pos = (state["pos_x"], state["pos_y"])
         if agent_pos in self.holes:
-            self.agent_fail[agent_name] = True  # Usa il nome dell'agente come chiave
+            self.agent_fail[agent_name] = True
             return self.penalty_amount
         else:
             return 0
 
     def check_terminations(self):
+        """
+        Checks which agents should terminate or truncate.
+
+        Termination conditions:
+        - timestep exceeds limit (1000)
+        - agent falls into a hole (fail state)
+        """
         terminations = {a.name: False for a in self.agents}
         truncations = {a.name: False for a in self.agents}
 
         for agente in self.agents:
-            if self.agent_fail[agente.name] or self.timestep > 1000:
+            if self.timestep > 1000:
                 terminations[agente.name] = True
                 truncations[agente.name] = True
+
+            # If any agent fails, all terminate
+            if self.agent_fail[agente.name]:
+                terminations = {a.name: True for a in self.agents}
+                truncations = {a.name: True for a in self.agents}
 
         return terminations, truncations
 
     def get_state(self, agent):
+        """
+        Returns a *copy* of the agent's current state to avoid accidental modification.
+        """
         current_state = agent.get_state()
-        # Restituisce una copia dello stato corrente dell'agente per evitare modifiche accidentali
         return current_state.copy()
 
+    def apply_action(self, agent, action_name: str):
+        """
+        Applies a deterministic action to the agent.
+
+        Moves within grid boundaries. Holes, rewards, and stochastic behavior
+        are handled elsewhere (in step()).
+        """
+        x, y = agent.get_position()
+
+        if action_name == "up" and y > 0:
+            y -= 1
+        elif action_name == "down" and y < self.grid_height - 1:
+            y += 1
+        elif action_name == "left" and x > 0:
+            x -= 1
+        elif action_name == "right" and x < self.grid_width - 1:
+            x += 1
+
+        agent.set_position(x, y)
+
     def get_stochastic_action(self, agent, intended_action):
+        """
+        Returns a stochastic variation of the intended action.
+
+        If delay_action is True:
+            60% chance to wait
+            36% chance to perform intended action
+            2% chance for each perpendicular action
+
+        Otherwise:
+            80% intended action
+            10% each perpendicular action
+        """
         if self.delay_action:
             action_map = {
                 "left": (["wait", "left", "up", "down"], [0.6, 0.36, 0.02, 0.02]),
@@ -159,9 +221,7 @@ class MultiAgentFrozenLake(BaseEnvironment):
                 "up": (["up", "left", "right"], [0.8, 0.1, 0.1]),
                 "down": (["down", "left", "right"], [0.8, 0.1, 0.1]),
             }
+
         actions, probabilities = action_map[intended_action]
         chosen_action = np.random.choice(actions, p=probabilities)
-        if chosen_action != "wait":
-            return agent.action(chosen_action)
-        else:
-            return "wait"
+        return chosen_action

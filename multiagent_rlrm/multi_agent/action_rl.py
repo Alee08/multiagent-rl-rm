@@ -1,17 +1,29 @@
+# multiagent_rlrm/multi_agent/action_rl.py
+
+
 class ActionRL:
     def __init__(self, name, preconditions=None, effects=None):
         """
-        Inizializza un'azione RL.
+        Initialize an RL action.
 
-        :param name: Nome dell'azione.
-        :param environment: Riferimento all'ambiente in cui l'azione verrà eseguita.
-        :param preconditions: Lista di precondizioni per l'azione.
-        :param effects: Lista di effetti dell'azione.
+        :param name: Name of the action.
+        :param preconditions: List of preconditions for the action.
+        :param effects: List of effects of the action.
         """
         self.name = name
-        self.preconditions = (
-            preconditions
-            if isinstance(preconditions, (list, tuple))
-            else [preconditions]
-        )
-        self.effects = effects if isinstance(effects, (list, tuple)) else [effects]
+
+        # Optional preconditions
+        if preconditions is None:
+            self.preconditions = []
+        elif isinstance(preconditions, (list, tuple)):
+            self.preconditions = list(preconditions)
+        else:
+            self.preconditions = [preconditions]
+
+        # Optional effects
+        if effects is None:
+            self.effects = []
+        elif isinstance(effects, (list, tuple)):
+            self.effects = list(effects)
+        else:
+            self.effects = [effects]
