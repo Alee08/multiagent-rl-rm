@@ -46,21 +46,21 @@ def backward_induction_sd(Q, V, R, P, gamma=1.0, vmax=np.inf):
 
 
 # ============================================================
-#  OPSRL (Posterior Sampling con prior Beta/Dirichlet + stato dummy ottimistico)
+#  OPSRL (Posterior Sampling with Beta/Dirichlet priors + optimistic dummy state)
 # ============================================================
 
 
 class OPSRL(BaseLearningAlgorithm):
     """
-    OPSRL con:
-      - Ricompense bernoullizzate e prior Beta(scale*(1,1)).
-      - Transizioni Dirichlet con prior 'uniform' o 'optimistic' (dummy state S+1).
-      - Thompson sampling con B campioni/episodio.
-      - Opzionale: rendere assorbenti gli stati terminali (come RMAX/QRMAX).
-      - Stessa interfaccia choose_action / update degli altri algoritmi (ritorna bool a fine episodio).
+    Optimistic Posterior Sampling for RL with:
+      - Bernoulli-ized rewards and Beta(scale*(1,1)) priors.
+      - Dirichlet transitions with 'uniform' or 'optimistic' (dummy S+1) priors.
+      - Thompson sampling with B samples per episode.
+      - Optional absorbing terminal states (RMAX/QRMAX style).
+      - Same choose_action/update interface as other algorithms (returns bool at episode end).
 
-    Parametri
-    ---------
+    Parameters
+    ----------
     state_space_size : int
     action_space_size : int
     ep_len : int = 100
@@ -119,7 +119,7 @@ class OPSRL(BaseLearningAlgorithm):
         S, A, H = state_space_size, action_space_size, ep_len
 
         # ---------------- v_max (upper bound) ----------------
-        # se reward_range non noto, assumiamo [0,1]
+        # If reward range is unknown, assume [0,1]
         r_span = 1.0
         self.v_max = np.zeros(H, dtype=np.float32)
         self.v_max[-1] = r_span
@@ -188,7 +188,7 @@ class OPSRL(BaseLearningAlgorithm):
         # bookkeeping
         self.tstep = 0
         self.episode = 0
-        self._planned_for_episode = -1  # flag per TS pianificazione
+        self._planned_for_episode = -1  # flag for TS planning
 
         # cosa salvare
         self.tosave += [
@@ -211,8 +211,10 @@ class OPSRL(BaseLearningAlgorithm):
         **kwargs,
     ) -> int:
         """
-        • best=False → policy di training (usa Q da TS dell'episodio corrente)
-        • best=True  → policy greedy “congelata” (MAP) usata nei test
+        Select an action using the Thompson-sampled policy for this episode.
+
+        • best=False → training policy (uses Q from current episode TS)
+        • best=True  → greedy policy frozen for evaluation (MAP)
         """
         h = min(self.tstep, self.H - 1)
         if rng is None:
@@ -221,7 +223,7 @@ class OPSRL(BaseLearningAlgorithm):
         if best:
             row = self.Q_policy[h, encoded_state]
         else:
-            # se non abbiamo ancora campionato/pianificato per questo episodio
+            # If we have not yet sampled/planned for this episode
             if self._planned_for_episode != self.episode:
                 self._sample_and_plan()
             row = self.Q[h, encoded_state]
@@ -242,14 +244,15 @@ class OPSRL(BaseLearningAlgorithm):
         **kwargs,
     ) -> bool:
         """
-        Aggiorna il posteriore Beta/Dirichlet.
-        Se terminated e make_absorbing_on_done -> rendi assorbente il next_state.
-        Ritorna True se episodio terminato.
+        Update Beta/Dirichlet posteriors and re-plan when an episode ends.
+
+        If terminated and make_absorbing_on_done -> make next_state absorbing.
+        Returns True when the episode is finished.
         """
         done = terminated or truncated
         h = min(self.tstep, self.H - 1)
 
-        # bernoullizza reward (o azzera se reward_free)
+        # Bernoulli-ize reward (or zero it if reward_free)
         r_obs = reward
         if self.reward_free:
             r_obs = 0.0
@@ -272,7 +275,7 @@ class OPSRL(BaseLearningAlgorithm):
         else:
             self.N_sas[encoded_state, action, ns] += 1.0
 
-        # stati assorbenti (buchi)
+        # Absorbing states (holes)
         if done and self.make_absorbing_on_done:
             self._make_absorbing(ns)
 
@@ -296,7 +299,7 @@ class OPSRL(BaseLearningAlgorithm):
     # ------------------------------------------------- INTERNALS ------------
 
     def _make_absorbing(self, s_abs: int):
-        """Rende s_abs assorbente (solo se è uno stato reale < S)."""
+        """Make s_abs absorbing (only if it is a real state < S)."""
         if s_abs >= self.S or self.absorbing[s_abs]:
             return
         self.absorbing[s_abs] = True
@@ -318,7 +321,7 @@ class OPSRL(BaseLearningAlgorithm):
             self.N_sas[s_abs, :, s_abs] = self.absorb_alpha
 
     def _sample_and_plan(self):
-        """Thompson sampling: campiona B MDP e pianifica via backward induction."""
+        """Thompson sampling: draw B MDPs and plan via backward induction."""
         B = self.thompson_samples
         H, S, A, S_next = self.H, self.S, self.A, self.S_next
 
@@ -326,7 +329,7 @@ class OPSRL(BaseLearningAlgorithm):
         if self.stage_dependent:
             a = np.repeat(self.M_sa[..., 0][..., None], B, -1)  # (H,S,A,B)
             b = np.repeat(self.M_sa[..., 1][..., None], B, -1)
-            R_samp = self.rng.beta(a, b)  # già scrivibile
+            R_samp = self.rng.beta(a, b)
         else:
             a = np.repeat(self.M_sa[..., 0][..., None], B, -1)  # (S,A,B)
             b = np.repeat(self.M_sa[..., 1][..., None], B, -1)
@@ -348,7 +351,7 @@ class OPSRL(BaseLearningAlgorithm):
                 P_samp[0, ..., : self.S, :] if self.use_dummy_state else P_samp[0]
             )
 
-        # -------- forza assorbenti --------
+        # -------- enforce absorbing states --------
         if self.absorbing.any():
             abs_idx = np.where(self.absorbing)[0]
             # rewards = 0
@@ -395,7 +398,7 @@ class OPSRL(BaseLearningAlgorithm):
             self.M_sa[..., 0] + self.M_sa[..., 1]
         )  # (S,A) o (H,S,A)
         if self.stage_dependent:
-            R_hat = R_hat_base  # già (H,S,A), è scrivibile
+            R_hat = R_hat_base
         else:
             # crea array (H,S,A) scrivibile
             R_hat = np.repeat(R_hat_base[None, ...], self.H, axis=0).astype(np.float64)

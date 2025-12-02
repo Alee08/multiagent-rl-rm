@@ -12,6 +12,8 @@ from multiagent_rlrm.learning_algorithms.learning_algorithm import BaseLearningA
 
 # Q-Rmax
 class QRMax_v2(BaseLearningAlgorithm):
+    """Model-based QRMax algorithm supporting Reward Machine state augmentation."""
+
     def __init__(
         self,
         max_reward: float = 1.0,
@@ -177,25 +179,25 @@ class QRMax_v2(BaseLearningAlgorithm):
 
     def save_environment(self, filepath):
         """
-        Salva le dinamiche dell'ambiente su un file.
+        Persist the learned environment dynamics to disk.
         """
         environment_state = {
-            "nTSAS": self.nTSAS,  # Numero di osservazioni delle transizioni (s, a, s').
-            "nTSA": self.nTSA,  # Numero di osservazioni delle transizioni (s, a).
-            "nTSAS_dict": self.nTSAS_dict,  # Dizionario che mappa (s, a) alle liste di stati successivi osservati.
-            "pTSAS": self.pTSAS,  # Probabilità di transizione stimata p(s'|s,a).
-            "knownTSA": self.knownTSA,  # Indicatore binario se una transizione (s, a) è conosciuta.
-            # "sumRSA": self.sumRSA,          #Somma delle ricompense osservate per ogni (s, a).
-            # "nRSA": self.nRSA,              #Numero di osservazioni delle ricompense r(s, a).
-            # "knownRSA": self.knownRSA,      #Indicatore binario se una ricompensa r(s, a) è conosciuta.
+            "nTSAS": self.nTSAS,  # Count of observed transitions (s, a, s').
+            "nTSA": self.nTSA,  # Count of observed transitions (s, a).
+            "nTSAS_dict": self.nTSAS_dict,  # Map (s, a) to observed next states.
+            "pTSAS": self.pTSAS,  # Estimated transition probabilities p(s'|s,a).
+            "knownTSA": self.knownTSA,  # Flag if a transition (s, a) is known.
+            # "sumRSA": self.sumRSA,          # Sum of observed rewards for each (s, a).
+            # "nRSA": self.nRSA,              # Number of observed rewards r(s, a).
+            # "knownRSA": self.knownRSA,      # Flag if reward r(s, a) is known.
         }
         with open(filepath, "wb") as f:
             pickle.dump(environment_state, f)
-        print(f"Dinamiche dell'ambiente salvate in {filepath}")
+        print(f"Environment dynamics saved to {filepath}")
 
     def load_environment(self, filepath):
         """
-        Carica le dinamiche dell'ambiente da un file.
+        Load environment dynamics from disk.
         """
         with open(filepath, "rb") as f:
             environment_state = pickle.load(f)

@@ -2,6 +2,8 @@ from multiagent_rlrm.multi_agent.state_encoder import StateEncoder
 
 
 class StateEncoderFrozenLake(StateEncoder):
+    """Encode Frozen Lake agent positions (and RM states) into compact integer indices."""
+
     def encode(self, state, state_rm=None):
         """
         Encodes the current environment state and the Reward Machine state into a single index,

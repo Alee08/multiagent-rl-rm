@@ -27,10 +27,10 @@ def value_iteration(P, num_states, num_actions, gamma=0.9, theta=1e-3, delta_rel
 
     while True:
         delta = 0
-        old_V = V.copy()  # Conserviamo i vecchi valori per il confronto
+        old_V = V.copy()  # Keep previous values for convergence check
         for s in range(num_states):
             q_values = np.zeros(num_actions)
-            # Calcola Q(s,a) per ogni azione
+            # Compute Q(s, a) for each action
             for a in range(num_actions):
                 for (prob, s_next, reward, done) in P[s][a]:
                     q_values[a] += prob * (reward + gamma * V[s_next] * (not done))

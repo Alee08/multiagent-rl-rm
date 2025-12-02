@@ -6,35 +6,35 @@ import imageio
 
 class EnvironmentRenderer:
     def __init__(self, grid_width, grid_height, agents, object_positions, goals):
+        """Initialize renderer with grid size, agents, objects, and goal mapping."""
         self.grid_width = grid_width
         self.grid_height = grid_height
         self.agents = agents
-        self.object_positions = (
-            object_positions or {}
-        )  # Dizionario per le posizioni degli oggetti
+        self.object_positions = object_positions or {}  # Positions of in-world objects
         self.goals = goals
         self.frames = []
-        self.agent_images = {}  # Cache per le immagini degli agenti caricate
-        self.object_images = {}  # Dizionario per le immagini degli oggetti
-        self.resources = {}  # Dizionario per le risorse caricate
-        # Calcola il percorso della cartella delle immagini
+        self.agent_images = {}  # Cache for loaded agent images
+        self.object_images = {}  # Mapping of object images
+        self.resources = {}  # Mapping of loaded resources
+        # Build the base path for image assets
         self.img_path = os.path.join(os.path.dirname(__file__))
         self.init_pygame()
 
     def load_resource(self, path, size):
-        """Carica e ridimensiona un'immagine dalla memoria."""
-        # Usa il percorso della cartella delle immagini per trovare l'immagine
+        """Load an image from disk and scale it to the desired size."""
+        # Use the image folder path to locate the asset
         full_path = os.path.join(self.img_path, path)
         image = pygame.image.load(full_path)
         return pygame.transform.scale(image, size)
 
     def init_pygame(self):
+        """Set up pygame surfaces, fonts, and preload static resources."""
         pygame.init()
         self.cell_size = 100
         self.frames = []
-        self.font = pygame.font.SysFont("Arial", 25)  # Crea un oggetto font
+        self.font = pygame.font.SysFont("Arial", 25)  # Create a font object
 
-        # Dizionario delle risorse con percorsi e dimensioni
+        # Resource dictionary with file paths and sizes
         resource_info = {
             "colosseo": ("img/colosseo.png", (90, 90)),
             "piazza": ("img/piazza.png", (90, 90)),
@@ -49,60 +49,61 @@ class EnvironmentRenderer:
             "holes": ("img/hole.png", (90, 90)),
             "ponte_immagine": ("img/ponte_.png", (40, 40)),
             "barca_a_remi": ("img/barca_.png", (40, 40)),
-            "plant": ("img/pianta.png", (90, 90)),  # Aggiungi l'immagine della pianta
-            "coffee": ("img/coffee.png", (90, 90)),  # Aggiungi l'immagine del caffè
-            "letter": ("img/email.png", (90, 90)),  # Aggiungi l'immagine della lettera
+            "plant": ("img/pianta.png", (90, 90)),  # Add the plant image
+            "coffee": ("img/coffee.png", (90, 90)),  # Add the coffee image
+            "letter": ("img/email.png", (90, 90)),  # Add the letter image
         }
 
-        # Carica tutte le risorse definiti in resource_info
+        # Load all resources defined in resource_info
         for name, (path, size) in resource_info.items():
             self.resources[name] = self.load_resource(path, size)
 
-        # Imposta la finestra di pygame
+        # Configure the pygame window
         screen_width = self.grid_width * self.cell_size
         screen_height = self.grid_height * self.cell_size
         self.screen = pygame.display.set_mode((screen_width, screen_height))
         self.clock = pygame.time.Clock()
 
     def load_agent_image(self, agent_type):
-        # Dizionario che mappa i tipi di agenti ai percorsi delle immagini e alle dimensioni
+        """Load and cache the sprite for a given agent type."""
+        # Map agent types to their sprite paths and sizes
         image_map = {
             "a1": ("img/ita_man.png", (85, 85)),
             "a2": ("img/juve.png", (75, 75)),
             "a3": ("img/bcn_man2.png", (80, 80)),
             "a4": ("img/CR7.png", (80, 80)),
             "a5": ("img/juve.png", (80, 80)),
-            # Aggiungi altre mappature...
+            # Add additional mappings as needed...
         }
 
-        # Percorso e dimensioni dell'immagine di default
+        # Default sprite path and size
         default_image_path = "img/bcn_man2.png"
         default_image_size = (80, 80)
 
-        # Controlla se l'immagine dell'agente è già stata caricata
+        # Check whether the sprite has already been cached
         if agent_type not in self.agent_images:
             try:
-                # Carica l'immagine specifica dell'agente o quella di default se non presente
+                # Load the agent-specific sprite or fall back to the default
                 if agent_type in image_map:
                     file_name, size = image_map[agent_type]
                 else:
-                    # Usa immagine di default
+                    # Use default sprite
                     file_name, size = default_image_path, default_image_size
 
-                # Costruisce il percorso completo dell'immagine
+                # Build the absolute asset path
                 full_path = os.path.join(self.img_path, file_name)
                 image = pygame.image.load(full_path)
                 self.agent_images[agent_type] = pygame.transform.scale(image, size)
 
             except pygame.error as e:
-                print(f"Errore nel caricamento dell'immagine per '{agent_type}': {e}")
-                self.agent_images[agent_type] = None  # O un'altra immagine di default
+                print(f"Error loading sprite for '{agent_type}': {e}")
+                self.agent_images[agent_type] = None  # Or another default image
 
         return self.agent_images[agent_type]
 
     def get_agent_image(self, agent_name, small=False):
-        # Utilizza `load_agent_image` per ottenere l'immagine basata sul tipo di agente
-        agent_type = agent_name  # Assumiamo che `agent_name` corrisponda al tipo di agente per semplicità
+        """Return an agent sprite, optionally scaled down when multiple agents share a cell."""
+        agent_type = agent_name  # Assume agent_name matches the type
         image = self.load_agent_image(agent_type)
         if image and small:
             return pygame.transform.scale(
@@ -111,23 +112,20 @@ class EnvironmentRenderer:
         return image
 
     def render(self, episode, obs):
+        """Draw the current environment state and collect frames for export."""
         cell_size = 100
-        # Regola la velocità di aggiornamento dello schermo
+        # Tune the update speed for early training versus final episodes
         self.clock.tick(6000 if episode < 89998 else 60)
         self.screen.fill((255, 255, 255))
 
-        # Disegna le linee della griglia
+        # Draw the grid lines
         for x in range(0, self.grid_width * cell_size, cell_size):
             for y in range(0, self.grid_height * cell_size, cell_size):
-                colore_linea = (0, 0, 0)  # Nero per le altre celle
+                colore_linea = (0, 0, 0)  # Black for all cells
 
-                # Disegna le linee della cella
-                pygame.draw.line(
-                    self.screen, colore_linea, (x, y), (x, y + cell_size)
-                )  # Linea verticale
-                pygame.draw.line(
-                    self.screen, colore_linea, (x, y), (x + cell_size, y)
-                )  # Linea orizzontale
+                # Draw vertical and horizontal edges
+                pygame.draw.line(self.screen, colore_linea, (x, y), (x, y + cell_size))
+                pygame.draw.line(self.screen, colore_linea, (x, y), (x + cell_size, y))
 
         # Render plants
         for p_x, p_y in self.object_positions.get("plant", []):
@@ -147,7 +145,7 @@ class EnvironmentRenderer:
             if letter_image:
                 self.screen.blit(letter_image, (l_x * 101, l_y * 101))
 
-        # Disegna gli ostacoli
+        # Draw obstacles
         for pos in self.object_positions.get("obstacles", []):
             obstacle_rect = pygame.Rect(
                 pos[0] * self.cell_size,
@@ -157,17 +155,15 @@ class EnvironmentRenderer:
             )
             pygame.draw.rect(
                 self.screen, (200, 90, 90), obstacle_rect
-            )  # Colore rosso per gli ostacoli
+            )  # Red for obstacles
 
-        # Disegna gli "holes"
+        # Draw holes
         for h_x, h_y in self.object_positions.get("holes", []):
-            hole_image = self.resources[
-                "holes"
-            ]  # Ottieni l'immagine del buco dalle risorse
+            hole_image = self.resources["holes"]  # Grab the hole image from resources
             if hole_image:
                 self.screen.blit(hole_image, (h_x * 101, h_y * 101))
 
-        # Disegna i goal
+        # Draw goals
         for goal_char, (g_x, g_y) in self.goals.items():
             goal_rect = pygame.Rect(
                 g_x * self.cell_size,
@@ -192,10 +188,10 @@ class EnvironmentRenderer:
                 end_pos = (min(x1, x2) * cell_size + cell_size, (y1 + 1) * cell_size)
             pygame.draw.line(self.screen, (0, 0, 0), start_pos, end_pos, 8)
 
-        # Dizionario per tenere traccia delle posizioni degli agenti
+        # Track where agents currently reside
         agent_positions = {}
 
-        # Raccogliere informazioni sulla posizione per tutti gli agenti
+        # Gather position information for each agent
         for agent_name, agent_state in obs.items():
             pos_x = agent_state.get("pos_x", None)
             pos_y = agent_state.get("pos_y", None)
@@ -205,21 +201,21 @@ class EnvironmentRenderer:
                     agent_positions[position] = []
                 agent_positions[position].append(agent_name)
             else:
-                # Gestisci il caso in cui le posizioni non siano disponibili
-                print("Posizioni degli agenti non definite in modo corretto!")
+                # Handle missing positions gracefully
+                print("Agent positions are not correctly defined!")
 
-        # Disegnare gli agenti
+        # Draw agents
         for position, agents_at_pos in agent_positions.items():
             if len(agents_at_pos) > 1:
-                # Se più di un agente condivide la stessa posizione, ridimensiona e affianca le loro immagini
+                # Multiple agents share the same cell: shrink and offset them
                 for index, ag in enumerate(agents_at_pos):
                     agent_image = self.get_agent_image(
                         ag, small=True
-                    )  # Funzione per ottenere l'immagine ridimensionata
+                    )  # Get the scaled-down sprite
                     offset = (
                         index * cell_size // len(agents_at_pos),
                         0,
-                    )  # Calcola l'offset per affiancare le immagini
+                    )  # Compute side-by-side offset
                     self.screen.blit(
                         agent_image,
                         (
@@ -228,8 +224,8 @@ class EnvironmentRenderer:
                         ),
                     )
             else:
-                # Se solo un agente occupa la posizione, usa la dimensione standard
-                # Calcola l'offset per centrare l'immagine nella cella
+                # Single agent: use the full-size sprite
+                # Offset to center within the cell
                 ag = agents_at_pos[0]
                 agent_image = self.get_agent_image(ag, small=False)
                 image_width, image_height = (
@@ -260,9 +256,9 @@ class EnvironmentRenderer:
 
             cv2.destroyAllWindows()
             video.release()
-            self.frames = []  # Pulisci la lista dei frames"""
+            self.frames = []  # Clear the frame list"""
 
-    import imageio  # Assicurati di importare imageio
+    import imageio  # Ensure imageio is imported
 
     def save_episode(self, episode, wandb=None):
         """
@@ -298,7 +294,7 @@ class EnvironmentRenderer:
                 imageio.mimsave(gif_path, self.frames, fps=2, loop=0)
             except Exception as e:
                 print(f"Error while creating GIF: {e}")
-                return  # Esci dalla funzione per evitare errori successivi
+                return  # Exit early to avoid downstream failures
 
             if not os.path.isfile(gif_path):
                 print(f"Error: GIF {gif_path} was not created.")
@@ -323,21 +319,22 @@ class EnvironmentRenderer:
             # Clear the frames after saving
             self.frames = []
 
-    # Altre funzioni necessarie per il rendering...
+    # Additional rendering helpers
 
     def save_first_frame(self, filename="first_frame.png"):
-        """Salva il primo frame renderizzato come immagine."""
+        """Save the first rendered frame as a PNG."""
         if self.frames:
             first_frame = self.frames[0]
-            # Converti il frame in una superficie Pygame
+            # Convert the frame into a Pygame surface
             surface = pygame.surfarray.make_surface(first_frame.transpose([1, 0, 2]))
-            # Salva la superficie come immagine PNG
+            # Save the surface as a PNG image
             pygame.image.save(surface, filename)
-            print(f"Primo frame salvato come {filename}")
+            print(f"First frame saved as {filename}")
         else:
-            print("Nessun frame disponibile per il salvataggio.")
+            print("No frame available to save.")
 
     def simulate_agents(self, agent_paths):
+        """Simulate agent trajectories and render each timestep before exporting."""
         max_steps = max(
             len(path) for path in agent_paths.values()
         )  # Find the maximum number of steps any agent takes

@@ -27,10 +27,10 @@ import wandb
 
 from multiagent_rlrm.environments.frozen_lake.detect_event import (
     PositionEventDetector,
-)  # Import del nuovo EventDetector
+)  # Import the position-based event detector
 from multiagent_rlrm.multi_agent.wrappers.rm_environment_wrapper import (
     RMEnvironmentWrapper,
-)  # Import del wrapper
+)  # Import the reward-machine environment wrapper
 from config_office import config, get_experiment_for_map
 from multiagent_rlrm.utils.utils import *
 import logging
@@ -39,7 +39,7 @@ import signal
 import pickle
 import matplotlib
 
-matplotlib.use("Agg")  # Imposta il backend "headless"
+matplotlib.use("Agg")  # Use the headless backend
 import matplotlib.pyplot as plt
 from multiagent_rlrm.environments.utils_envs.mdp_vi import *
 from PIL import Image as PILImage
@@ -92,6 +92,7 @@ USER_QUIT = False
 
 
 def signal_handler(sig, frame):
+    """Handles SIGINT to allow graceful shutdown during training loops."""
     global USER_QUIT
     print("!!! User quit (CTRL-C) !!!")
     USER_QUIT = True
@@ -236,7 +237,7 @@ def parse_arguments(default_map, default_experiment, default_algorithm):
     parser.add_argument(
         "--all-slip",  # attiva l’all‑slip
         action="store_true",
-        help="(solo con --stochastic) azioni slittano in tutte le direzioni",
+        help="(only with --stochastic) actions may slip in all directions",
     )
 
     parser.add_argument(
@@ -316,6 +317,11 @@ def parse_arguments(default_map, default_experiment, default_algorithm):
 
 
 def getenvstr(args):
+    """
+    Builds a short environment descriptor string (deterministic/stochastic and penalties) and attaches it to args.
+
+    :param args: Parsed CLI arguments to be enriched with env_str.
+    """
 
     global_config = config["global_settings"]
 
@@ -338,10 +344,7 @@ def setup_environment(args):
     Configures the environment and agents based on the selected map, experiment, algorithm, and seed.
     Initializes the environment, agents, and their reward machines.
 
-    :param map_name: The name of the map.
-    :param args.experiment: The selected experiment to configure.
-    :param args.algorithm: The name of the algorithm to use.
-    :param seed: The random seed for reproducibility.
+    :param args: Parsed CLI arguments containing map, experiment, algorithm, and seed.
     :return: The configured RMEnvironmentWrapper instance along with coordinates, office walls, and goals.
     """
     map_config = config["maps"][args.map]
@@ -385,9 +388,9 @@ def setup_environment(args):
     event_detector = PositionEventDetector(position_map)
     agent.set_reward_machine(RewardMachine(transitions, event_detector))
 
-    # Se l'algoritmo scelto richiede il reward shaping, lo configuriamo
+    # Configure reward shaping if requested by the selected algorithm
     if args.algorithm == "QRM_RS":
-        # Puoi usare args.gamma per rs_gamma oppure aggiungere un nuovo parametro
+        # You can use args.gamma for rs_gamma or add a dedicated parameter
         agent.get_reward_machine().add_reward_shaping(args.gamma, args.gamma)
         # agent.get_reward_machine().add_distance_reward_shaping(args.gamma, args.gamma)
 
@@ -502,7 +505,8 @@ def create_rmax(state_size, seed, stochastic=False, use_qrm=False):
 
     :param state_size: The size of the state space.
     :param seed: Random seed for reproducibility.
-    :param stochastic: stochastic env.
+    :param stochastic: Whether the environment is stochastic.
+    :param use_qrm: Whether to use Reward Machine-aware RMax.
     :return: Configured RMax instance.
     """
     return RMax(
@@ -531,8 +535,9 @@ def create_qlearning(
 
     :param state_size: The size of the state space.
     :param seed: Random seed for reproducibility.
-    :param use_qrm: Boolean indicating whether to use QRM or regular QLearning.
-    :param stochastic: stochastic env.
+    :param use_qrm: Whether to use QRM or regular QLearning.
+    :param stochastic: Whether the environment is stochastic.
+    :param use_rsh: Whether to enable reward shaping.
     :return: Configured QLearning instance.
     """
     return QLearning(
@@ -558,7 +563,7 @@ def create_qrmax(state_size, q_space_size, seed, stochastic=False, use_qrm=False
     :param state_size: The size of the state space.
     :param q_space_size: The number of states in the Reward Machine.
     :param seed: Random seed for reproducibility.
-    :param stochastic: stochastic env.
+    :param stochastic: Whether the environment is stochastic.
     :return: Configured QRMax instance.
     """
     return QRMax_v2(
@@ -581,7 +586,14 @@ def create_qrmax(state_size, q_space_size, seed, stochastic=False, use_qrm=False
 
 
 def create_ucbvi(state_size, seed, stochastic=False):
-    # puoi sostituire i valori fissi con quelli di args.* se ti servono
+    """
+    Creates a UCBVI planner with fixed exploration and bonus settings.
+
+    :param state_size: The size of the state space.
+    :param seed: Random seed for reproducibility.
+    :param stochastic: Whether the environment is stochastic (currently unused).
+    :return: Configured UCBVI instance.
+    """
     return UCBVI(
         state_space_size=state_size,
         action_space_size=4,
@@ -599,6 +611,14 @@ def create_ucbvi(state_size, seed, stochastic=False):
 
 
 def create_opsrl(state_size, seed, stochastic=False):
+    """
+    Creates an OPSRL agent with Thompson sampling over optimistic priors.
+
+    :param state_size: The size of the state space.
+    :param seed: Random seed for reproducibility.
+    :param stochastic: Whether the environment is stochastic (currently unused).
+    :return: Configured OPSRL instance.
+    """
     return OPSRL(
         state_space_size=state_size,
         action_space_size=4,
@@ -617,9 +637,8 @@ def initialize_wandb(args):
     """
     Initializes Weights & Biases (wandb) for experiment logging.
 
-    :param algo: Name of the algorithm used in the experiment
-    :param args.experiment: Name of the selected experiment.
-    :param seed: Random seed for reproducibility.
+    :param args: Namespace containing env string, map, experiment, algorithm, and hyperparameters to log.
+    :return: None.
     """
     WANDB_PROJECT = config["wandb"]["project"]
     WANDB_ENTITY = config["wandb"]["entity"]
@@ -787,7 +806,7 @@ def test_policy(args, rm_env, episode, train_steps, play=False, optimal_steps=30
                     f"[{episode}] {args.stochastic};{args.map};{args.experiment} Test success rate: {success_rate_per_agente} - avg timesteps {average_timesteps} - avg reward {avg_reward_per_agente} - avg arps {avg_arps_per_agente}" )
     """
 
-    # Se non siamo in modalità play, logghiamo i dati su wandb
+    # If not in play mode, log data to wandb when enabled
     if not play and args.wandb:
         log_data = {}
 
@@ -910,7 +929,7 @@ def compute_and_plot_vi_policy_multi(rm_env, office_walls, coordinates, goals, a
     os.makedirs(cache_dir, exist_ok=True)
 
     # 1. Name of the file to save to or load VI results from.
-    # vi_cache_file = os.path.join(cache_dir, f"vi_{args.map}_{args.experiment}.pkl") #altrimenti rimuovere il nome dell'algo dal nome dell'agente
+    # vi_cache_file = os.path.join(cache_dir, f"vi_{args.map}_{args.experiment}.pkl")  # Alternative: remove algorithm from agent name
 
     # Includi l'algoritmo nel nome del file di cache
     vi_cache_file = os.path.join(
@@ -1090,8 +1109,13 @@ from PIL import Image as PILImage
 
 def perform_and_log_ttest(ricompense_vi, ricompense_rl, agente_name, args):
     """
-    Esegue un t-test fra due serie di ricompense (VI vs RL)
-    e logga i risultati (plot + statistiche) su wandb.
+    Runs a t-test between VI and RL reward samples and optionally logs plots to wandb.
+
+    :param ricompense_vi: Dictionary of VI reward arrays per agent.
+    :param ricompense_rl: Dictionary of RL reward arrays per agent.
+    :param agente_name: Agent identifier.
+    :param args: Experiment arguments (used for gamma and wandb toggles).
+    :return: Tuple containing t-test statistic, p-value, and summary stats (mean/std) for VI and RL.
     """
 
     if not args.stochastic:
@@ -1118,7 +1142,7 @@ def perform_and_log_ttest(ricompense_vi, ricompense_rl, agente_name, args):
     logging.info(f"Mean VI({gamma}): {mean_vi}, Std VI({gamma}): {std_vi}")
     logging.info(f"Mean {aname}: {mean_rl}, Std {aname}: {std_rl}")
 
-    # Se non usiamo wandb, basta così
+    # If wandb is disabled, return raw statistics without plotting
     if not args.wandb:
         return statistic, pvalue, mean_vi, std_vi, mean_rl, std_rl
 
@@ -1212,12 +1236,12 @@ def do_ttest_vi_vs_rl(rm_env, vi_results, args, episodes_test=100):
     - If `vi_results` is not available, it must be computed or loaded from a file beforehand.
     """
 
-    # 1) Costruisce un dizionario di policy VI: { agent.name -> policy_vi }
+    # 1) Build a VI policy dictionary: { agent.name -> policy_vi }
     policy_vi_dict = {}
     for agent_name, (V, policy_vi, Q) in vi_results.items():
         policy_vi_dict[agent_name] = policy_vi
 
-    # 2) Builds a dictionary of RL policies (extracted from Q-table or other)
+    # 2) Build a dictionary of RL policies (extracted from Q-table or other)
     policy_rl_dict = {}
     for agent in rm_env.agents:
         policy_rl = extract_policy_from_qtable(agent)
@@ -1296,14 +1320,14 @@ def run_post_processing_multi(
     Returns:
       - A dictionary containing t-test results for each agent.
     """
-    # Determina se testare in modalità deterministica o meno
+    # Decide whether to test deterministically
     test_deterministic = not args.stochastic
 
     # 1) Calculate the multi-agent VI policy and produce any heatmaps
     vi_results = compute_and_plot_vi_policy_multi(
         rm_env, office_walls, coordinates, goals, args
     )
-    # vi_results è un dict: { agent.name -> (V, policy_vi, Q) }
+    # vi_results is a dict: { agent.name -> (V, policy_vi, Q) }
 
     # 2) Build a VI policy dictionary: { agent.name -> policy_vi }
     policy_vi_dict = {}
@@ -1313,13 +1337,13 @@ def run_post_processing_multi(
     # 3) Parallel VI testing for *all* agents with test_policy_opt_multi
     results_vi = test_policy_opt_multi(
         rm_env=rm_env,
-        policy_dict=policy_vi_dict,  # Dizionario di policy VI
+        policy_dict=policy_vi_dict,  # VI policy dictionary
         episodes_test=episodes_test,
         gamma=args.gamma,
         optimal_steps=opt,
         test_deterministic=test_deterministic,
     )
-    ricompense_vi_all = results_vi[7]  # { agent.name -> lista di ricompense }
+    ricompense_vi_all = results_vi[7]  # { agent.name -> list of rewards }
 
     # 4) Builds a RL policy dictionary, extracting the RL policy from each agent's Q-table
     policy_rl_dict = {}
@@ -1330,7 +1354,7 @@ def run_post_processing_multi(
     # 5) Multi-agent RL testing
     results_rl = test_policy_opt_multi(
         rm_env=rm_env,
-        policy_dict=policy_rl_dict,  # Dizionario di policy RL
+        policy_dict=policy_rl_dict,  # RL policy dictionary
         episodes_test=episodes_test,
         gamma=args.gamma,
         optimal_steps=opt,
@@ -1388,9 +1412,9 @@ def run_experiment(args):
     vi_results = compute_and_plot_vi_policy_multi(
         rm_env, office_walls, coordinates, goals, args
     )
-    # E' un dict: { agent.name -> (V, policy_vi, Q) }
+    # vi_results is a dict: { agent.name -> (V, policy_vi, Q) }
 
-    # 3) Ciclo di training RL
+    # 3) RL training loop
     dorun = True
     episode = 0
     total_step = 0
@@ -1478,7 +1502,7 @@ def run_experiment(args):
                 current_state = rm_env.env.get_state(ag)
                 action = ag.select_action(current_state)
                 actions[ag.name] = action
-                # Log delle azioni nell'ultimo episodio
+                # Track actions taken in the latest episode
                 update_actions_log(actions_log, actions, NUM_EPISODES)
 
             new_states, rewards, terminated, truncated, infos = rm_env.step(actions)
@@ -1626,9 +1650,9 @@ def run_experiment(args):
 
             results_ttest = do_ttest_vi_vs_rl(
                 rm_env=rm_env,
-                vi_results=vi_results,  # Caricato o calcolato una volta all'inizio
+                vi_results=vi_results,  # Loaded or computed once at startup
                 args=args,
-                episodes_test=100,  # Numero di episodi di test
+                episodes_test=100,  # Number of evaluation episodes
             )
 
             # results_ttest -> {agent.name: (stat, pval, mean_vi, std_vi, mean_rl, std_rl)}
@@ -1636,7 +1660,7 @@ def run_experiment(args):
             for ag_name, (statistic, pvalue, mv, sv, mr, sr) in results_ttest.items():
                 if (
                     args.stochastic and pvalue > 0.1
-                ):  # Criterio: RL non è significativamente peggiore di VI
+                ):  # Criterion: RL is not significantly worse than VI
                     logging.info(
                         f"Early-stop triggered for agent {ag_name} (p-value={pvalue:.4f} > 0.1)."
                     )
@@ -1644,7 +1668,7 @@ def run_experiment(args):
                     break
 
             if stop_for_pvalue:
-                # Interrompi il training
+                # Stop training if the criterion is met
                 dorun = False
 
         if total_step > max_step or USER_QUIT or (args.early_stop and not dorun):
@@ -1732,7 +1756,7 @@ if __name__ == "__main__":
             "early_stop": args.early_stop,
             "render": args.render,
             "generate_heatmap": args.generate_heatmap,
-            # Aggiungi altri parametri se necessario
+            # Add other parameters if needed
         }
 
         # Inizializza wandb con la config, senza impostare ancora il nome
@@ -1743,7 +1767,7 @@ if __name__ == "__main__":
             reinit=True,
         )
 
-        # Aggiorna args con i parametri da wandb.config
+        # Update args with parameters from wandb.config
         args.map = wandb.config.get("map", args.map)
         args.experiment = wandb.config.get("experiment", args.experiment)
         args.algorithm = wandb.config.get("algorithm", args.algorithm)

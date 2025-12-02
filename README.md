@@ -42,7 +42,7 @@ from multiagent_rlrm.environments.frozen_lake.ma_frozen_lake import MultiAgentFr
 W, H = 10, 10
 holes = [(2,3), (2,4), (7,0), (7,1), (7,2), (7,3), (7,4), (7,8)]
 env = MultiAgentFrozenLake(width=W, height=H, holes=holes)
-env.frozen_lake = True      # slip/stochastic dynamics
+env.frozen_lake_stochastic = True      # slip/stochastic dynamics
 env.penalty_amount = 0      # penalty when falling into a hole
 env.delay_action = False    # optional "wait" bias if True
 ```
@@ -62,27 +62,9 @@ a1, a2 = AgentRL("a1", env), AgentRL("a2", env)
 a1.set_initial_position(4, 0)
 a2.set_initial_position(6, 2)
 
-for a in (a1, a2):
-    a.add_state_encoder(StateEncoderFrozenLake(a))
-
-def can_up(a):    return a.get_position()[1] > 0
-def can_down(a):  return a.get_position()[1] < H-1
-def can_left(a):  return a.get_position()[0] > 0
-def can_right(a): return a.get_position()[0] < W-1
-
-def eff_up(a):    a.set_position(a.get_position()[0], a.get_position()[1]-1)
-def eff_down(a):  a.set_position(a.get_position()[0], a.get_position()[1]+1)
-def eff_left(a):  a.set_position(a.get_position()[0]-1, a.get_position()[1])
-def eff_right(a): a.set_position(a.get_position()[0]+1, a.get_position()[1])
-
-actions = [
-    ActionRL("up",    [can_up],    [eff_up]),
-    ActionRL("down",  [can_down],  [eff_down]),
-    ActionRL("left",  [can_left],  [eff_left]),
-    ActionRL("right", [can_right], [eff_right]),
-]
-for a in (a1, a2):
-    for act in actions: a.add_action(act)
+for ag in (a1, a2):
+    ag.add_state_encoder(StateEncoderFrozenLake(ag))
+    ag.add_action_encoder(ActionEncoderFrozenLake(ag))
 ```
 
 
@@ -126,7 +108,7 @@ def make_ql(rm):  # state size includes RM states
         gamma=0.99,
         action_selection="greedy",
         epsilon_start=0.01, epsilon_end=0.01, epsilon_decay=0.9995,
-        # use_qrm=True, use_rsh=True  # optional: counterfactuals & RM shaping
+        use_qrm=True, use_rsh=False  # optional: counterfactuals & RM shaping
     )
 
 a1.set_learning_algorithm(make_ql(rm1))
@@ -169,5 +151,22 @@ for ep in range(EPISODES):
 In this loop, agents continuously assess their environment, make decisions, and act accordingly. The env.step(actions) method encapsulates the agents' interactions with the environment, including executing actions, receiving new observations, calculating rewards, and updating the agents' policies based on the results. This streamlined process simplifies the learning loop and focuses on the essential elements of agent-environment interaction.
 
 
+## Implemented learning algorithms
+
+All algorithms live in `multiagent_rlrm/learning_algorithms` and expose a common interface via `choose_action(...)` and `update(...)`.
+
+| Algorithm | Type | Short description |
+|----------|------|-------------------|
+| `QLearning` | Model-free, tabular | Standard tabular Q-learning with ε-greedy or softmax exploration; supports Reward Machines via QRM-style counterfactual updates and optional potential-based reward shaping. |
+| `QRM` | Model-free, RM-aware | Q-learning over Reward Machines: augments the state with the RM automaton state and uses counterfactual updates across compatible automaton states to reuse experience under non-Markovian rewards. |
+| `RMax` | Model-based, optimistic | The classic R-Max algorithm: learns an explicit tabular transition/reward model, treats unknown state–action pairs as maximally rewarding, and plans via value iteration to drive directed exploration. |
+| `QRMax` | Model-based, RM-aware | R-Max-style model-based RL for non-Markovian rewards via Reward Machines; factorizes environment dynamics and RM dynamics, reuses each learned transition across RM states, and preserves PAC-style sample-efficiency guarantees. |
+| `PSRL` | Model-based, posterior sampling | Posterior Sampling for RL (Thompson sampling over MDPs): maintains Bayesian posteriors over transitions and rewards, samples an MDP each episode, and follows its optimal policy. |
+| `OPSRL` | Model-based, optimistic posterior sampling | Optimistic PSRL variant with Dirichlet/Beta priors and optimistic treatment of under-explored transitions, encouraging exploration by biasing sampled models toward rewarding but uncertain dynamics. |
+| `UCBVI` | Model-based, UCB-style | Tabular UCB Value Iteration for finite-horizon MDPs: maintains empirical models plus step-wise exploration bonuses and plans via backward value iteration with UCB-style confidence bonuses. |
 
 
+## License
+
+MAPRL is released under the **Apache 2.0 License**.  
+See the `LICENSE` file for details.

@@ -96,7 +96,7 @@ env.delay_action = False  # Enable delayed "wait" action behavior
 a3 = AgentRL("a3", env)
 a1 = AgentRL("a1", env)
 a1.set_initial_position(0, 0)  # Also add position to the agent's state
-a3.set_initial_position(0, 0)  # Also add position to the agent's state
+a3.set_initial_position(1, 0)  # Also add position to the agent's state
 
 
 a3.add_state_encoder(StateEncoderFrozenLake(a3))

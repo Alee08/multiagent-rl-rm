@@ -58,22 +58,22 @@ def test_policy_optima(
 
     successi_per_agente = {ag.name: 0 for ag in env_test.agents}
     successi_per_episodio = {ag.name: [] for ag in env_test.agents}
-    ricompense_per_agente = {ag.name: [] for ag in env_test.agents}  # Nuovo
+    ricompense_per_agente = {
+        ag.name: [] for ag in env_test.agents
+    }  # Track cumulative rewards per episode
     timestep_per_episodio = {
         ag.name: [] for ag in env_test.agents
-    }  # Lista per tenere traccia dei timestep per episodio
-    arps_per_agente = {
-        ag.name: [] for ag in env_test.agents
-    }  # Per tenere traccia dell'ARPS
+    }  # Track timesteps per episode
+    arps_per_agente = {ag.name: [] for ag in env_test.agents}  # Track ARPS per agent
 
     for episodio in range(episodi_test):
         states, infos = env_test.reset(
             10000 + episodio
-        )  # Resetta l'ambiente di test per ogni episodio
+        )  # Reset the test environment for each episode
         done = {ag.name: False for ag in env_test.agents}
         agent_success = {ag.name: False for ag in env_test.agents}
-        timestep = 0  # Inizializza il contatore di timestep per l'episodio
-        episode_rewards = {ag.name: 0 for ag in env_test.agents}  # Nuovo
+        timestep = 0  # Initialize the timestep counter for the episode
+        episode_rewards = {ag.name: 0 for ag in env_test.agents}
 
         cum_gamma = 1.0
 
@@ -83,7 +83,7 @@ def test_policy_optima(
                 current_state = env_test.env.get_state(ag)
                 azione = ag.select_action(
                     current_state, best=True
-                )  # Seleziona l'azione in modalità test
+                )  # Select the greedy action during testing
                 # print(f"Current State: {current_state}, Select Action: {azione.name}")
                 actions[ag.name] = azione
 
@@ -103,15 +103,15 @@ def test_policy_optima(
                     ):
                         successi_per_agente[
                             ag.name
-                        ] += 1  # Conta come successo se l'agente raggiunge lo stato finale della RM
+                        ] += (
+                            1  # Count success when the agent reaches the final RM state
+                        )
                         agent_success[ag.name] = True
 
-            states = copy.deepcopy(
-                new_states
-            )  # Aggiorna lo stato per il prossimo timestep
+            states = copy.deepcopy(new_states)  # Update state for the next timestep
             cum_gamma *= gamma
 
-            timestep += 1  # Incrementa il contatore di timestep per l'episodio
+            timestep += 1  # Increment timestep counter for the episode
 
             if all(done.values()) or all(truncations.values()) or timestep > 1000:
                 break
@@ -120,19 +120,19 @@ def test_policy_optima(
 
         for ag in env_test.agents:
             successi_per_episodio[ag.name].append(1 if agent_success[ag.name] else 0)
-            ricompense_per_agente[ag.name].append(episode_rewards[ag.name])  # Nuovo
+            ricompense_per_agente[ag.name].append(episode_rewards[ag.name])
             if agent_success[ag.name]:
                 timestep_per_episodio[ag.name].append(timestep)
-                # Aggiungi il conteggio di timestep per l'episodio corrente
+                # Record timestep count for this successful episode
 
         # TODO CHECK - episode_rewards now contains discounted rewards
-        # Calcolo dell'ARPS scontato per episodio
+        # Compute discounted ARPS per episode
         for ag_name, reward in episode_rewards.items():
             discounted_reward = reward
             # sum(
             # reward * (gamma ** t) for t, reward in enumerate(rewards.values())
             # )
-            if timestep > 0:  # Evita la divisione per zero
+            if timestep > 0:  # Avoid division by zero
                 arps = (discounted_reward / timestep) / optimal_steps
                 arps_per_agente[ag_name].append(arps)
 
@@ -143,7 +143,7 @@ def test_policy_optima(
         for ag_name, successi in successi_per_agente.items()
     }
 
-    # Calcola la media mobile per ogni agente
+    # Compute moving averages for each agent
     moving_averages = {}
     for ag_name in successi_per_episodio:
         moving_averages[ag_name] = (
@@ -166,7 +166,7 @@ def test_policy_optima(
         avg_timesteps_per_agente = {ag.name: 0 for ag in env_test.agents}
         std_timesteps_per_agente = {ag_name: 0 for ag in env_test.agents}
 
-    # Calcola la ricompensa media per ogni agente
+    # Compute average reward for each agent
     avg_reward_per_agente = {
         ag_name: np.mean(rewards) for ag_name, rewards in ricompense_per_agente.items()
     }
@@ -174,7 +174,7 @@ def test_policy_optima(
         ag_name: np.std(rewards) for ag_name, rewards in ricompense_per_agente.items()
     }
 
-    # Calcola l'ARPS medio per ogni agente
+    # Compute average ARPS for each agent
     avg_arps_per_agente = {
         ag_name: np.mean(arps) for ag_name, arps in arps_per_agente.items()
     }
@@ -431,17 +431,17 @@ def compute_normalized_arps(gamma, optimal_steps, avg_reward=1.0, target_arps=1.
       - Normalized ARPS value.
     """
     if gamma == 1:
-        # Gestire il caso quando gamma è 1, che può risultare in divisione per zero
+        # Handle gamma == 1 to avoid division by zero
         return target_arps / optimal_steps
 
-    # Calcola l'ARPS senza normalizzazione
+    # Compute ARPS without normalization
     total_reward = avg_reward * (1 - gamma ** (optimal_steps + 1)) / (1 - gamma)
     arps = total_reward / optimal_steps
 
-    # Calcola il fattore di scala necessario
+    # Compute required scaling factor
     scale_factor = target_arps / arps
 
-    # Applica la normalizzazione
+    # Apply normalization
     normalized_total_reward = total_reward * scale_factor
     normalized_arps = normalized_total_reward / optimal_steps
     return normalized_arps
@@ -474,7 +474,7 @@ def extract_policy_from_qtable(agent):
         q_table = alg.q_table
         num_states, num_actions = q_table.shape
 
-        # La policy è semplicemente argmax su ciascuna riga
+        # Policy is simply the argmax across each row
         policy_rl = np.argmax(q_table, axis=1)  # shape (num_states,)
 
     # Case 2: QRMAX, with .Q
@@ -550,7 +550,7 @@ def test_policy_opt_multi(
         except:
             print("Environment does not support setting stochastic mode")
 
-    # Inizializza contatori e array di statistiche per ogni agente
+    # Initialize counters and statistics for each agent
     successi_per_agente = {ag.name: 0 for ag in env_test.agents}
     successi_per_episodio = {ag.name: [] for ag in env_test.agents}
     ricompense_per_agente = {ag.name: [] for ag in env_test.agents}
@@ -582,14 +582,14 @@ def test_policy_opt_multi(
                 # The index action = policy_ag[encoded_state]
                 if ag.name not in policy_dict:
                     raise ValueError(
-                        f"Nessuna policy fornita per agente {ag.name} in policy_dict."
+                        f"No policy provided for agent {ag.name} in policy_dict."
                     )
                 policy_ag = policy_dict[ag.name]
 
                 # Indice azione
                 if encoded_state >= len(policy_ag):
                     raise ValueError(
-                        f"encoded_state={encoded_state} fuori dal range policy_ag di lunghezza {len(policy_ag)}"
+                        f"encoded_state={encoded_state} outside policy_ag length {len(policy_ag)}"
                     )
                 action_index = policy_ag[encoded_state]
 
@@ -597,7 +597,7 @@ def test_policy_opt_multi(
                 all_actions = ag.get_actions()  # list of possible actions
                 if action_index < 0 or action_index >= len(all_actions):
                     raise ValueError(
-                        f"Azione indice {action_index} non valida per lo stato {encoded_state} (agente {ag.name})."
+                        f"Action index {action_index} invalid for state {encoded_state} (agent {ag.name})."
                     )
                 action = all_actions[action_index]
                 actions[ag.name] = action
@@ -609,7 +609,7 @@ def test_policy_opt_multi(
             for ag in env_test.agents:
                 if not agent_success[ag.name]:
                     episode_rewards[ag.name] += cum_gamma * rewards[ag.name]
-                    # Controllo se l'agente ha raggiunto la final state della RM
+                    # Check whether the agent reached the final Reward Machine state
                     if (
                         done[ag.name]
                         and ag.get_reward_machine().get_current_state()
@@ -625,14 +625,14 @@ def test_policy_opt_multi(
 
         # end of an episode
         for ag in env_test.agents:
-            # Se l'agente ha avuto successo
+            # Record success and outcomes
             successi_per_episodio[ag.name].append(1 if agent_success[ag.name] else 0)
             # Let's save the final reward accumulated in the episode
             ricompense_per_agente[ag.name].append(episode_rewards[ag.name])
             if agent_success[ag.name]:
                 timestep_per_episodio[ag.name].append(timestep)
 
-            # Calcolo ARPS scontato
+            # Compute discounted ARPS
             if timestep > 0:
                 arps = (episode_rewards[ag.name] / timestep) / optimal_steps
                 arps_per_agente[ag.name].append(arps)
@@ -733,7 +733,7 @@ def estrai_policy_rl(agent):
     elif hasattr(algo, "q_table"):
         q_table = algo.q_table
     else:
-        raise ValueError("L'algoritmo RL non ha una Q-table accessibile.")
+        raise ValueError("The RL algorithm does not expose an accessible Q-table.")
 
     policy_rl = np.argmax(q_table, axis=1)  # policy_rl[s] = argmax_a Q(s,a)
     return policy_rl
@@ -750,11 +750,11 @@ def extract_value_function_from_qtable(q_table):
     Returns:
       - value_function: 1D NumPy array where value_function[s] is the maximum Q-value for state s.
     """
-    # Se la Q-table è bidimensionale
+    # If the Q-table is two-dimensional
     if len(q_table.shape) == 2:
         num_states, num_actions = q_table.shape
-        value_function = np.max(q_table, axis=1)  # Max Q-value per stato
-    # Se la Q-table è tridimensionale
+        value_function = np.max(q_table, axis=1)  # Max Q-value per state
+    # If the Q-table is three-dimensional
     elif len(q_table.shape) == 3:
         num_env_states, rm_states_count, num_actions = q_table.shape
         num_states = num_env_states * rm_states_count

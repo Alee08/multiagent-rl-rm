@@ -8,12 +8,26 @@ from multiprocessing import Process, Manager
 
 
 class BaseLearningAlgorithm(ABC):
+    """Base interface for RL algorithms with utilities for saving, loading, and training loops."""
+
     def __init__(
         self, state_space_size, action_space_size, gamma=0.99, seed=2020, max_steps=400
     ):
+        """
+        Initialize shared learning parameters.
+
+        Args:
+            state_space_size (int): Number of encoded environment states.
+            action_space_size (int): Number of discrete actions.
+            gamma (float): Discount factor.
+            seed (int): RNG seed.
+            max_steps (int): Maximum steps per episode during learning.
+        """
         self.state_space_size = state_space_size
         self.action_space_size = action_space_size
-        self.requires_rm_event = False  # Imposta il valore predefinito
+        self.requires_rm_event = (
+            False  # Default flag indicating if RM events are needed
+        )
         self.episode = 0
         self.rleval = None
         self.max_steps = max_steps  # max steps per episode
@@ -32,13 +46,42 @@ class BaseLearningAlgorithm(ABC):
     def update(
         self, encoded_state, encoded_next_state, action, reward, rm_state, next_rm_state
     ):
+        """
+        Update the learning algorithm with a single transition.
+
+        Args:
+            encoded_state (int or np.ndarray): Current encoded observation.
+            encoded_next_state (int or np.ndarray): Next encoded observation.
+            action (int): Action index taken.
+            reward (float): Observed reward.
+            rm_state (Any): Current Reward Machine state marker.
+            next_rm_state (Any): Next Reward Machine state marker.
+        """
         pass
 
     @abstractmethod
     def choose_action(self, encoded_state, **kwargs):
+        """
+        Select an action given the encoded state.
+
+        Args:
+            encoded_state (int or np.ndarray): Encoded observation.
+            **kwargs: Optional extra info for exploration policies.
+
+        Returns:
+            int: Chosen action index.
+        """
         pass
 
     def save_model(self, expname, aname, models_dir):
+        """
+        Persist algorithm state (and optional evaluator state) to disk.
+
+        Args:
+            expname (str): Experiment identifier.
+            aname (str): Agent name.
+            models_dir (str): Directory to store the snapshot.
+        """
         filename = "%s/%s_%s_%06d.dat" % (models_dir, expname, aname, self.episode - 1)
 
         dict_save = {}
@@ -60,6 +103,14 @@ class BaseLearningAlgorithm(ABC):
         print("Model saved on file %s\n" % filename)
 
     def auto_load_model(self, expname, aname, models_dir):
+        """
+        Load the most recent saved model for the given experiment/agent if present.
+
+        Args:
+            expname (str): Experiment identifier.
+            aname (str): Agent name.
+            models_dir (str): Directory containing saved snapshots.
+        """
         m = -1
         for f in os.listdir(models_dir):
             if f[-8:] == ".dat.npz":
@@ -74,6 +125,9 @@ class BaseLearningAlgorithm(ABC):
             print(f"No model found for {expname}_{aname}")
 
     def delete_models(self, expname, aname, models_dir):
+        """
+        Remove saved model files for the specified experiment and agent.
+        """
         for f in os.listdir(models_dir):
             if f[-8:] == ".dat.npz":
                 v = f.split("_")
@@ -81,6 +135,12 @@ class BaseLearningAlgorithm(ABC):
                     os.remove(models_dir + "/" + f)
 
     def load_model(self, filename):
+        """
+        Load algorithm (and optional evaluator) state from a saved snapshot.
+
+        Args:
+            filename (str): Path to the saved `.dat.npz` file.
+        """
         try:
             data = np.load(filename, allow_pickle=True)
         except Exception as e:
@@ -108,21 +168,34 @@ class BaseLearningAlgorithm(ABC):
         print("Model loaded from file %s\n" % filename)
 
     def learn_init(self):
+        """Optional hook executed once before the learning loop begins."""
         pass
 
     def learn_init_episode(self):
+        """Optional hook executed at the start of each episode."""
         pass
 
     # def learn_update(self, obs, action: int, reward: float, terminated: bool, next_obs, info):
     #    pass
 
     def learn_done_episode(self):
+        """Optional hook executed at the end of each episode."""
         pass
 
     def learn_end(self):
+        """Optional hook executed after learning is finished."""
         pass
 
     def learn_step(self, env):
+        """
+        Run one training episode inside the environment.
+
+        Args:
+            env: Environment implementing reset/step with the expected signatures.
+
+        Returns:
+            bool: False when learning should terminate, True otherwise.
+        """
 
         time0 = time.time()
 
@@ -203,6 +276,17 @@ class BaseLearningAlgorithm(ABC):
         return True
 
     def learn(self, env, n_episodes, n_steps):
+        """
+        Execute the high-level learning loop for a given number of episodes or steps.
+
+        Args:
+            env: Environment used for training.
+            n_episodes (int): Maximum number of episodes to run.
+            n_steps (int): Maximum number of total steps to run.
+
+        Returns:
+            bool: True when training completes without early termination.
+        """
 
         tolearn = (n_episodes > 0 and self.episode <= n_episodes) or (
             n_steps > 0 and self.total_steps <= n_steps

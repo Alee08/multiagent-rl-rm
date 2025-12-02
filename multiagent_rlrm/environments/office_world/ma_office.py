@@ -18,6 +18,8 @@ np.random.seed(123)
 
 
 class MultiAgentOfficeWorld(BaseEnvironment):
+    """Grid-world environment for multi-agent Office World with symbolic actions and reward machines."""
+
     metadata = {"name": "multi_agent_office_world"}
 
     def __init__(
@@ -34,6 +36,21 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         terminate_hit_walls,
         all_slip=False,
     ):
+        """
+        Initializes the Office World environment with geometry, hazards, and control flags.
+
+        :param width: Grid width.
+        :param height: Grid height.
+        :param plants: Iterable of plant coordinates.
+        :param coffee: Iterable of coffee coordinates.
+        :param letters: Iterable of letter coordinates.
+        :param walls: Iterable of directed wall tuples ((x1, y1), (x2, y2)).
+        :param plants_penalty_value: Penalty applied when stepping on a plant.
+        :param wall_penalty_value: Penalty applied when hitting a wall.
+        :param terminate_on_plants: Whether episodes terminate upon hitting a plant.
+        :param terminate_hit_walls: Whether episodes terminate upon hitting a wall.
+        :param all_slip: Whether stochastic dynamics allow slipping in all directions.
+        """
         super().__init__(width, height)
         self.wait_action = ActionRL("wait", [], [])
         self.plants = plants  # Lists of plant positions in rooms
@@ -234,7 +251,7 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         for agent in self.agents:
             if self.agent_fail[agent.name]:
                 terminations[agent.name] = True
-            if self.timestep > 1000:  # TODO: Utilizzare un parametro configurabile
+            if self.timestep > 1000:  # TODO: make this threshold configurable
                 truncations[agent.name] = True
 
         return terminations, truncations
@@ -272,10 +289,17 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         agent.set_position(x, y)
 
     def is_wall_collision(self, agent, action_name):
+        """
+        Checks whether executing the given action would result in a wall collision.
+
+        :param agent: Agent attempting the action.
+        :param action_name: Name of the intended action.
+        :return: True if the action would hit a wall, otherwise False.
+        """
         if action_name == "wait":
-            return False  # "wait" non dovrebbe causare collisioni
+            return False  # "wait" should not cause collisions
         if action_name not in ["up", "down", "left", "right"]:
-            raise ValueError(f"Azione non valida: {action_name}")
+            raise ValueError(f"Invalid action: {action_name}")
         action_validity_map = {
             "up": can_move_up(agent),
             "down": can_move_down(agent),
@@ -290,9 +314,9 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         Terminates the agent's episode if `terminate_hit_walls` is set to True.
 
         :param agent: The agent attempting the action.
-        :param intended_action: The action the agent intends to perform.
-        :return: A tuple containing the penalty value and the corrected action
-                 (e.g., "wait" in case of a collision).
+        :param intended_action_name: The action the agent intends to perform.
+        :return: A tuple (penalty, chosen_action) where chosen_action may be
+                 replaced with "wait" when a collision occurs.
         """
         if self.is_wall_collision(agent, intended_action_name):
             if self.terminate_hit_walls:
@@ -302,8 +326,9 @@ class MultiAgentOfficeWorld(BaseEnvironment):
 
     def get_action_probability_mapping(self):
         """
-        Ritorna un dizionario con le azioni possibili e le loro probabilità
-        in base alla configurazione dell'ambiente.
+        Returns the available actions and their execution probabilities based on environment settings.
+
+        :return: Dictionary mapping nominal action names to (subaction_list, probability_list).
         """
         if self.delay_action:
             return {
@@ -318,9 +343,9 @@ class MultiAgentOfficeWorld(BaseEnvironment):
                 "right": (["right"], [1.0]),
                 "up": (["up"], [1.0]),
                 "down": (["down"], [1.0]),
-                "wait": (["wait"], [1.0]),  # se la consideri tra le azioni
+                "wait": (["wait"], [1.0]),  # Include if "wait" is an allowed action
             }
-        if self.all_slip:  # ramo stochastic = True
+        if self.all_slip:  # stochastic mode with symmetric slip
             hp = self.high_prob  # 0.8
             lp = (1 - hp) / 3  # 0.066666…
 
@@ -345,7 +370,7 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         Determines the stochastic outcome of the agent's intended action.
 
         :param agent: The agent executing the action.
-        :param intended_action: The action the agent intends to perform.
+        :param intended_action_name: The action the agent intends to perform.
         :return: The actual action executed, based on stochastic probabilities.
         """
         action_map = self.get_action_probability_mapping()
@@ -354,12 +379,15 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         return chosen_action
 
         # -------------------------------------------------------------------------------------------
-        # Metodi generici per rendere get_mdp generale e non dipendente da x,y,q_rm direttamente
+        # Generic helpers to keep get_mdp general and decoupled from x, y, q_rm
         # -------------------------------------------------------------------------------------------
 
     def set_state(self, agent, state):
         """
-        Imposta l'ambiente in un determinato stato (x, y, q_rm).
+        Sets the environment to a specific state tuple (x, y, q_rm).
+
+        :param agent: Agent whose state should be updated.
+        :param state: Tuple (pos_x, pos_y, rm_state_index).
         """
         x, y, q_rm = state
         rm = agent.get_reward_machine()
@@ -369,7 +397,10 @@ class MultiAgentOfficeWorld(BaseEnvironment):
 
     def get_current_state(self, agent):
         """
-        Restituisce lo stato corrente dell'ambiente come (x, y, q_rm).
+        Returns the current environment state as (x, y, q_rm).
+
+        :param agent: Agent whose state should be read.
+        :return: Tuple containing grid coordinates and reward-machine state index.
         """
         x, y = agent.get_position()
         rm = agent.get_reward_machine()
@@ -379,9 +410,13 @@ class MultiAgentOfficeWorld(BaseEnvironment):
 
     def is_terminal_state_mdp(self, agent, pos_x, pos_y, rm_state):
         """
-        Ritorna (is_terminal, terminal_reward)
-        dove is_terminal è un bool,
-        e terminal_reward è la reward istantanea da assegnare se lo stato è terminale.
+        Checks whether a given MDP state is terminal.
+
+        :param agent: Agent under evaluation.
+        :param pos_x: X position.
+        :param pos_y: Y position.
+        :param rm_state: Reward-machine state index.
+        :return: (is_terminal, terminal_reward) pair.
         """
         # 1) if plants
         if (pos_x, pos_y) in self.plants and self.terminate_on_plants:
@@ -390,17 +425,18 @@ class MultiAgentOfficeWorld(BaseEnvironment):
         # 2) if final state of RewardMachine
         rm = agent.get_reward_machine()
         if rm_state == rm.get_final_state():
-            # ipotesi: final state -> reward 1.0, e done
-            # oppure 0, dipende dal dominio
+            # Assumption: final RM state gives zero reward and terminates
             return True, 0
 
-        # Altrimenti, non è terminale
+        # Otherwise, not terminal
         return False, 0
 
     def get_action_distribution(self, action):
         """
-        Dato un ActionRL nominale (es: "up"), restituisce la lista di sub-azioni
-        e le loro probabilità. Questo serve se hai azioni stocastiche.
+        Returns sub-actions and probabilities for a nominal ActionRL when using stochastic dynamics.
+
+        :param action: The nominal ActionRL instance.
+        :return: Tuple (subaction_objects, probabilities).
         """
         action_map = self.get_action_probability_mapping()
 

@@ -1,24 +1,36 @@
 #!/usr/bin/env python3
 
-from setuptools import setup, find_packages
-import multiagent_rlrm
+from pathlib import Path
 
-long_description = "Multi-Agent RLRM: A library that makes it easy to formulate multi-agent problems and to resolve by reinforcement learning."
+from setuptools import find_packages, setup
+
+BASE_DIR = Path(__file__).parent
+README = BASE_DIR / "README.md"
+VERSION_FILE = BASE_DIR / "multiagent_rlrm" / "__init__.py"
+
+version_namespace = {}
+if VERSION_FILE.exists():
+    exec(VERSION_FILE.read_text(encoding="utf-8"), version_namespace)
+version = version_namespace.get("__version__", "0.0.0")
+
+long_description = (
+    README.read_text(encoding="utf-8")
+    if README.exists()
+    else "Multi-Agent RLRM: A library that makes it easy to formulate multi-agent problems and solve them with reinforcement learning."
+)
 
 setup(
     name="multiagent-rl-rm",
-    version="0.1",
-    # version=multiagent_rlrm.__version__,
+    version=version,
     description="Multi-Agent RLRM Framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Alessandro Trapasso",
     author_email="Ale.trapasso8@gmail.com",
-    url="",
+    url="https://github.com/Alee08/multi-agent-rl-rm",
     packages=find_packages(),
-    include_package_data=True,  # Abilita l'inclusione dei dati specificati in package_data
+    include_package_data=True,
     package_data={
-        # Specifica di includere tutti i file nella directory img
         "multiagent_rlrm.render.img": ["*"],
     },
     python_requires=">=3.8",
@@ -34,14 +46,13 @@ setup(
     extras_require={
         "data_analysis": [
             "pandas==2.2.1",
-            # "matplotlib==3.8.3",
             "seaborn==0.13.2",
             "scipy==1.12.0",
         ],
         "image_processing": ["opencv-python==4.9.0.80", "pillow==10.2.0"],
         "metrics_monitoring": ["wandb==0.16.4"],
     },
-    license="APACHE",
+    license="Apache-2.0",
     keywords="learning multiagent rewardmachine reinforcementlearning",
     classifiers=[
         "Development Status :: 3 - Alpha",
@@ -54,5 +65,4 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
-    # entry_points={},
 )

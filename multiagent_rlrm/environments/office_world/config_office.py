@@ -10,6 +10,7 @@ from multiagent_rlrm.utils.utils import parse_office_world
 
 
 def can_move_up(agent):
+    """Checks if the agent can move up without exiting the grid or hitting a wall."""
     x, y = agent.get_position()
     return (
         y < agent.ma_problem.grid_height - 1
@@ -18,16 +19,19 @@ def can_move_up(agent):
 
 
 def can_move_down(agent):
+    """Checks if the agent can move down without exiting the grid or hitting a wall."""
     x, y = agent.get_position()
     return y > 0 and ((x, y), (x, y - 1)) not in agent.ma_problem.walls
 
 
 def can_move_left(agent):
+    """Checks if the agent can move left without exiting the grid or hitting a wall."""
     x, y = agent.get_position()
     return x > 0 and ((x, y), (x - 1, y)) not in agent.ma_problem.walls
 
 
 def can_move_right(agent):
+    """Checks if the agent can move right without exiting the grid or hitting a wall."""
     x, y = agent.get_position()
     return (
         x < agent.ma_problem.grid_width - 1
@@ -286,7 +290,13 @@ O  🟩 🟩 🟩 E  🟩 🟩 🟩 🟩 ✉️
 # Function to get experiment details based on the selected map and experiment.
 # This function parses the map layout and sets up the corresponding state transitions.
 def get_experiment_for_map(map_name, selected_experiment):
-    """Returns the experiment configuration based on the selected map and experiment."""
+    """
+    Returns the experiment configuration for a given map and experiment identifier.
+
+    :param map_name: Name of the map (e.g., "map1").
+    :param selected_experiment: Experiment key such as "exp1".
+    :return: Experiment configuration dict or None if not found.
+    """
     # Parsing the layout of the selected map to identify key coordinates and goals.
     layout = config["maps"][map_name]["layout"]
     coordinates, goals, office_walls = parse_office_world(layout)
@@ -407,12 +417,15 @@ def get_experiment_for_map(map_name, selected_experiment):
         "exp7": {
             "description": "Coffee to Office",
             "transitions": {
-                ("state0", coordinates["coffee"][0]): ("state1", 0),  # più distante
+                ("state0", coordinates["coffee"][0]): (
+                    "state1",
+                    0,
+                ),  # farther coffee location
                 ("state0", coordinates["coffee"][1]): ("state2", 0),
                 ("state1", goals["O"]): (
                     "state3",
                     1000,
-                ),  ##########################1000 o 100
+                ),  # reward magnitude toggle (1000 or 100)
                 ("state2", goals["O"]): ("state3", 1),
             },
             "positions": {

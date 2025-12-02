@@ -4,6 +4,8 @@ from multiagent_rlrm.learning_algorithms.learning_algorithm import BaseLearningA
 
 
 class QLearning(BaseLearningAlgorithm):
+    """Tabular Q-Learning with optional QRM counterfactuals and reward shaping."""
+
     def __init__(
         self,
         gamma,
@@ -20,7 +22,7 @@ class QLearning(BaseLearningAlgorithm):
         super().__init__(**kwargs)
         self.learning_rate = learning_rate
         self.gamma = gamma
-        self.action_selection = action_selection  # 'softmax' o 'greedy'
+        self.action_selection = action_selection  # 'softmax' or 'greedy'
         self.q_table = np.full(
             (self.state_space_size, self.action_space_size), qtable_init, dtype=float
         )
@@ -40,9 +42,10 @@ class QLearning(BaseLearningAlgorithm):
         self, encoded_state, encoded_next_state, action, reward, terminated, **kwargs
     ):
         """
-        Aggiorna il Q-value per la transizione (s, a, s').
-        Se use_rsh è abilitato e viene passato l'oggetto "reward_machine" (dentro kwargs),
-        aggiunge il bonus/penalità di reward shaping secondo:
+        Update the Q-value for a transition (s, a, s').
+
+        If reward shaping is enabled and a reward_machine with potentials is provided,
+        the shaped reward is computed as:
           R' = R + gamma * Phi(s') - Phi(s)
         """
         rm = kwargs["info"].get("reward_machine", None)
@@ -81,11 +84,11 @@ class QLearning(BaseLearningAlgorithm):
             for qrm_exp in qrm_experiences:
                 #  _s      -> encoded state (from info "prev_q")
                 #  _a      -> action index
-                #  _r      -> reward (ambientale + eventuale shaping già incluso)
+                #  _r      -> reward (environmental + any shaping already included)
                 #  _sn     -> encoded next state
-                #  _done   -> flag di terminazione
-                #  _current_q -> encoded RM state "prev" (dalla tupla)
-                #  _next_q    -> encoded RM state "next" (dalla tupla)
+                #  _done   -> termination flag
+                #  _current_q -> encoded RM state "prev" (from tuple)
+                #  _next_q    -> encoded RM state "next" (from tuple)
                 _s, _a, _r, _sn, _done, _, _current_q, _, _next_q, _ = qrm_exp
                 if (
                     self.use_rsh
@@ -93,7 +96,7 @@ class QLearning(BaseLearningAlgorithm):
                     and hasattr(rm, "potentials")
                     and rm.potentials is not None
                 ):
-                    # Qui _current_q è lo stato RM "prima" e _next_q è lo stato RM "dopo".
+                    # _current_q is the previous RM state and _next_q is the next RM state
                     rm_prev_state_cf = rm.get_state_from_index(_current_q)
                     rm_state_cf = rm.get_state_from_index(_next_q)
                     shaping_reward_cf = self.gamma * rm.potentials.get(
@@ -107,28 +110,32 @@ class QLearning(BaseLearningAlgorithm):
         return False  # do not terminate
 
     def choose_action(self, encoded_state, best=False, rng=None, **kwargs):
+        """
+        Select an action index using epsilon-greedy or deterministic greedy if best=True.
+        """
         if best:
             return np.argmax(self.q_table[encoded_state])
         if rng is None:
             rng = self.rng
         if rng.uniform(0, 1) < self.epsilon:
-            # Esplorazione casuale
+            # Random exploration
             return rng.choice(range(self.action_space_size))
         else:
-            # Scegli l'azione in base al metodo specificato
+            # Choose action according to the configured strategy
             if self.action_selection == "softmax":
                 return self.choose_action_softmax(encoded_state, rng)
             elif self.action_selection == "greedy":
                 return self.choose_action_greedy(encoded_state, rng)
             else:
-                raise ValueError("Metodo di selezione dell'azione non supportato")
+                raise ValueError("Unsupported action selection method")
 
     def choose_action_softmax(self, encoded_state, rng):
+        """Sample an action using softmax probabilities over Q-values."""
         softmax_probs = self.softmax(self.q_table[encoded_state])
         return rng.choice(np.arange(self.action_space_size), p=softmax_probs)
 
     def choose_action_greedy(self, encoded_state, rng):
-        # choose random action among best ones
+        """Choose uniformly among the greedy actions."""
         Qa = self.q_table[encoded_state]
         va = np.argmax(Qa)
         maxs = [i for i, v in enumerate(Qa) if v == Qa[va]]
@@ -136,15 +143,18 @@ class QLearning(BaseLearningAlgorithm):
         return action  # np.argmax(self.q_table[encoded_state])
 
     def softmax(self, q_values, beta=4):
+        """Compute softmax probabilities with temperature beta."""
         exp_q = np.exp(
             beta * q_values - np.max(beta * q_values)
-        )  # Sottrai il max per la stabilità numerica
+        )  # Subtract max for numerical stability
         probabilities = exp_q / np.sum(exp_q)
         return probabilities
 
     def learn_done_episode(self):
+        """Decay epsilon after each episode."""
         self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
         # print(f"{self.epsilon:6.3f}")
 
     def reset_epsilon(self):
+        """Reset epsilon to its starting value."""
         self.epsilon = self.epsilon_start

@@ -2,12 +2,15 @@ from multiagent_rlrm.multi_agent.state_encoder import StateEncoder
 
 
 class StateEncoderOfficeWorld(StateEncoder):
+    """Encodes Office World agent states into integer indices for tabular algorithms."""
+
     def encode(self, state, state_rm=None):
         """
-        Codifies the current state, the Reward Machine state, and returns the necessary info.
-        :param agent: The agent instance to access necessary agent-specific configurations.
-        :param state: Dictionary representing the agent's state, including position.
-        :return: A tuple (encoded_state, info) where info is a supplementary information dictionary.
+        Encodes grid position and reward-machine state into a single integer.
+
+        :param state: Dictionary with keys like "pos_x" and "pos_y".
+        :param state_rm: Optional reward-machine state identifier.
+        :return: Tuple (encoded_state, info_dict) where info_dict includes spatial and RM indices.
         """
         num_rm_states = self.agent.get_reward_machine().numbers_state()
         pos_x, pos_y = state["pos_x"], state["pos_y"]
@@ -24,19 +27,19 @@ class StateEncoderOfficeWorld(StateEncoder):
         if encoded_state >= total_states:
             raise ValueError("Encoded state index exceeds total state space size.")
 
-        # Costruzione delle info
+        # Build auxiliary info
         info = {
             "s": pos_index,
             "q": rm_state_index,
         }
-        # print(info, "weee")
         return encoded_state, info
 
     def decode(self, encoded_state):
         """
-        Decode encoded_state to (decoded_state, rm_state),
-        where decoded_state = {"pos_x": ..., "pos_y": ...}
-        and rm_state is the RM string/state.
+        Decodes an integer state into grid coordinates and reward-machine state.
+
+        :param encoded_state: Combined state index.
+        :return: Tuple (decoded_state_dict, rm_state_label).
         """
         rm = self.agent.get_reward_machine()
         num_rm_states = rm.numbers_state()

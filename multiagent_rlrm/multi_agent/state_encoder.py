@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 
 
 class StateEncoder(ABC):
+    """Abstract encoder that maps environment states (and optional RM state) into numeric representations."""
+
     def __init__(self, agent):
         # Store a reference to the agent using this encoder
         self.agent = agent

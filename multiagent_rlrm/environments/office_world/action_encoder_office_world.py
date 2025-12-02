@@ -6,6 +6,7 @@ class ActionEncoderOfficeWorld(ActionEncoder):
     """Registers symbolic movement actions for Office World agents."""
 
     def build_actions(self):
+        """Adds the four deterministic movement actions to the agent."""
         self.agent.add_action(ActionRL("up"))
         self.agent.add_action(ActionRL("down"))
         self.agent.add_action(ActionRL("left"))

@@ -31,6 +31,9 @@ class MultiAgentFrozenLake(BaseEnvironment):
         self.agent_steps = {agent.name: 0 for agent in self.agents}
         self.delay_action = False  # Enables delayed (wait) stochastic transitions
         self.epsilon = None
+        self.random_start_positions = (
+            False  # if True, agents start in random free cells
+        )
 
     def reset(self, seed=123, options=None):
         """
@@ -48,9 +51,16 @@ class MultiAgentFrozenLake(BaseEnvironment):
         self.agent_fail = {agent.name: False for agent in self.agents}
         self.agent_steps = {agent.name: 0 for agent in self.agents}
 
-        for agent in self.agents:
-            # Reset agent to starting position (0, 0)
-            agent.set_initial_position(0, 0)
+        rng = (
+            np.random.default_rng(seed) if seed is not None else np.random.default_rng()
+        )
+        if self.random_start_positions:
+            start_positions = self._sample_start_positions(rng)
+        else:
+            start_positions = [(0, 0) for _ in self.agents]
+
+        for agent, start_pos in zip(self.agents, start_positions):
+            agent.set_initial_position(*start_pos)
             agent.reset()  # Reset internal RM and states
 
             l_algo = agent.get_learning_algorithm()
@@ -128,6 +138,24 @@ class MultiAgentFrozenLake(BaseEnvironment):
         observations = {agent.name: agent.state for agent in self.agents}
 
         return observations, self.rewards, terminations, truncations, infos
+
+    def _sample_start_positions(self, rng):
+        """
+        Sample distinct start positions not in holes.
+
+        :param rng: np.random.Generator instance.
+        :return: List of (x, y) tuples, one per agent.
+        """
+        free_cells = [
+            (x, y)
+            for x in range(self.grid_width)
+            for y in range(self.grid_height)
+            if (x, y) not in self.holes
+        ]
+        if len(free_cells) < len(self.agents):
+            raise ValueError("Not enough free cells to place all agents.")
+        rng.shuffle(free_cells)
+        return free_cells[: len(self.agents)]
 
     def holes_in_the_ice(self, state, agent_name):
         """

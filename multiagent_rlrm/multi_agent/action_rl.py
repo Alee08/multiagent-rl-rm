@@ -1,7 +1,6 @@
-# multiagent_rlrm/multi_agent/action_rl.py
-
-
 class ActionRL:
+    """Lightweight representation of an RL action with optional preconditions and effects."""
+
     def __init__(self, name, preconditions=None, effects=None):
         """
         Initialize an RL action.

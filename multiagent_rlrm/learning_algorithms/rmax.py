@@ -33,10 +33,10 @@ class RMax(BaseLearningAlgorithm):
         # )
         self.requires_rm_event = False
 
-        # Calcola il valore ottimistico basato sulla massima ricompensa e sul fattore di sconto
+        # Compute optimistic value based on max reward and discount factor
         optimistic_value = self.max_reward / (1 - self.gamma)
 
-        # Inizializza la Q-table con il valore ottimistico
+        # Initialize Q-table with optimistic value
         self.q_table = np.full(
             (self.state_space_size, self.action_space_size), optimistic_value
         )

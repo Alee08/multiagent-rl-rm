@@ -6,9 +6,9 @@ import os
 from matplotlib import gridspec
 
 
-# Configurazioni
-# dim_griglia = (10, 10)  # Dimensioni della griglia (righe, colonne)
-# num_stati_rm = 3      # Numero di stati nella Reward Machine
+# Example configuration snippets:
+# dim_griglia = (10, 10)  # Grid dimensions (rows, columns)
+# num_stati_rm = 3        # Number of states in the Reward Machine
 
 # Caricamento della Q-table
 # data = np.load('q_tables.npz')
@@ -16,6 +16,17 @@ from matplotlib import gridspec
 
 
 def generate_heatmaps(q_table, dim_griglia, num_stati_rm):
+    """
+    Plot heatmaps of the maximum Q-values and greedy actions for each Reward Machine state.
+
+    Args:
+        q_table (np.ndarray): Q-table shaped either (nS, nA) or (nS, nQ, nA).
+        dim_griglia (tuple): Grid dimensions as (height, width).
+        num_stati_rm (int): Number of Reward Machine states.
+
+    Returns:
+        matplotlib.figure.Figure: Figure containing one heatmap per RM state.
+    """
     grid_height, grid_width = dim_griglia
 
     action_symbols = {0: "↓", 1: "↑", 2: "←", 3: "→"}
@@ -85,6 +96,19 @@ def generate_heatmaps(q_table, dim_griglia, num_stati_rm):
 def generate_heatmaps_with_walls(
     q_table, dim_griglia, num_stati_rm, walls=None, plants=None
 ):
+    """
+    Plot heatmaps with greedy actions while also overlaying walls and optional plant markers.
+
+    Args:
+        q_table (np.ndarray): Q-table shaped either (nS, nA) or (nS, nQ, nA).
+        dim_griglia (tuple): Grid dimensions as (height, width).
+        num_stati_rm (int): Number of Reward Machine states.
+        walls (list, optional): List of wall segments defined as ((x1, y1), (x2, y2)).
+        plants (list, optional): Iterable of (x, y) coordinates to highlight.
+
+    Returns:
+        matplotlib.figure.Figure: Figure containing one heatmap per RM state.
+    """
     grid_height, grid_width = dim_griglia
 
     action_symbols = {0: "↓", 1: "↑", 2: "←", 3: "→"}
@@ -135,7 +159,7 @@ def generate_heatmaps_with_walls(
         axes[idx].set_xlabel("Column")
         axes[idx].set_ylabel("Row")
 
-        # Rimuovi l'inversione dell'asse Y
+        # Keep the default Y-axis orientation
         # axes[idx].invert_yaxis()
 
         # Draw the walls
@@ -170,7 +194,6 @@ def generate_heatmaps_with_walls(
         # Draw the plants
         if plants is not None:
             for (p_x, p_y) in plants:
-                # Non invertire p_y
                 axes[idx].scatter(
                     p_x + 0.5,
                     p_y + 0.5,
@@ -187,17 +210,26 @@ def generate_heatmaps_with_walls(
 
 
 def generate_heatmaps_time(q_table, dim_griglia, num_stati_rm, max_time):
-    # Calcola il valore medio di Q per ciascun stato RM e posizione, ignorando il tempo
-    reshaped_q_table = q_table.reshape((*dim_griglia, max_time, num_stati_rm, -1))
-    mean_q_values = reshaped_q_table.mean(axis=2)  # Media lungo l'asse del tempo
+    """
+    Plot heatmaps for time-indexed Q-tables by averaging across the time dimension.
 
-    max_q_values = mean_q_values.max(axis=-1)  # Ottieni i massimi valori Q
-    optimal_actions = mean_q_values.argmax(axis=-1)  # Trova le azioni ottimali
+    Args:
+        q_table (np.ndarray): Q-table shaped (height, width, time, rm_states, actions).
+        dim_griglia (tuple): Grid dimensions as (height, width).
+        num_stati_rm (int): Number of Reward Machine states.
+        max_time (int): Maximum time dimension used in the Q-table.
+    """
+    # Compute mean Q-values per RM state and position, averaging over time
+    reshaped_q_table = q_table.reshape((*dim_griglia, max_time, num_stati_rm, -1))
+    mean_q_values = reshaped_q_table.mean(axis=2)  # Mean along time axis
+
+    max_q_values = mean_q_values.max(axis=-1)  # Maximum Q-values
+    optimal_actions = mean_q_values.argmax(axis=-1)  # Greedy action indices
 
     # Mappa dei codici delle azioni ai simboli corrispondenti
     action_symbols = {0: "↑", 1: "↓", 2: "←", 3: "→"}
 
-    # Visualizzazione delle Heatmaps
+    # Heatmap visualization
     fig, axes = plt.subplots(1, num_stati_rm, figsize=(20, 6))
 
     if num_stati_rm == 1:
@@ -262,12 +294,13 @@ def generate_heatmaps_for_agents(
 
 def generate_heatmaps_for_agents_time(agents, q_tables_data, grid_dims, max_time):
     """
-    Genera heatmap per le Q-table di ogni agente.
+    Generate time-averaged heatmaps for each agent's Q-table.
 
     Args:
-        agents (list): Lista degli agenti.
-        q_tables_data (npz file): Dati delle Q-table salvati come file npz.
-        grid_dims (tuple): Dimensioni della griglia, es. (grid_width, grid_height).
+        agents (list): Agents whose Q-tables should be visualized.
+        q_tables_data (np.lib.npyio.NpzFile): Loaded Q-table data keyed by agent.
+        grid_dims (tuple): Grid dimensions, e.g., (width, height).
+        max_time (int): Number of time steps encoded in the Q-table.
     """
     for agent in agents:
         agent_name = agent.name
@@ -289,6 +322,15 @@ def generate_heatmaps_for_agents_time(agents, q_tables_data, grid_dims, max_time
 
 
 def extract_q_tables(agents):
+    """
+    Collect Q-table data from each agent's learning algorithm.
+
+    Args:
+        agents (list): Agents whose Q-tables should be gathered.
+
+    Returns:
+        dict: Mapping of agent names to their Q-table arrays.
+    """
     q_tables_data = {}
     for agent in agents:
         algorithm = agent.get_learning_algorithm()
@@ -306,13 +348,29 @@ def extract_q_tables(agents):
 def generate_value_policy_heatmap(
     V, policy, grid_dims, rm, walls=None, plants=None, goals=None, coordinates=None
 ):
+    """
+    Render value and policy heatmaps for each Reward Machine state.
+
+    Args:
+        V (np.ndarray): Flattened value function aligned with (grid, rm state) ordering.
+        policy (np.ndarray): Greedy action indices for each combined state.
+        grid_dims (tuple): Grid dimensions as (height, width).
+        rm (RewardMachine): Reward machine providing state metadata.
+        walls (list, optional): Wall segments to overlay.
+        plants (list, optional): Plant coordinates to overlay.
+        goals (dict, optional): Mapping of goal labels to coordinates.
+        coordinates (dict, optional): Mapping of item types to coordinate sets.
+
+    Returns:
+        matplotlib.figure.Figure: Figure showing value/policy per RM state.
+    """
     grid_height, grid_width = grid_dims
     num_states = len(V)
     num_rm_states = rm.numbers_state()
     expected_states = grid_height * grid_width * num_rm_states
     assert num_states == expected_states, f"Mismatch in number of states."
 
-    # Inverti l'indice degli stati RM
+    # Map RM state indices back to names
     index_to_state = {v: k for k, v in rm.state_indices.items()}
     rm_states_list = [index_to_state[i] for i in range(num_rm_states)]
 
@@ -332,15 +390,13 @@ def generate_value_policy_heatmap(
     coffee_positions = set(coordinates.get("coffee", [])) if coordinates else set()
     letter_positions = set(coordinates.get("letter", [])) if coordinates else set()
 
-    # Carica le immagini del caffè e della lettera come array RGBA
+    # Load coffee and letter icons as RGBA arrays
     img_path = os.path.join(os.path.dirname(__file__))
 
     coffee_image = plt.imread(
         f"{img_path}/img/coffee.png"
-    )  # Assicurati del percorso corretto
-    letter_image = plt.imread(
-        f"{img_path}/img/email.png"
-    )  # Assicurati del percorso corretto
+    )  # Ensure the path is correct
+    letter_image = plt.imread(f"{img_path}/img/email.png")  # Ensure the path is correct
 
     for idx, rm_state_name in enumerate(rm_states_list):
         q_rm = rm.state_indices[rm_state_name]
@@ -370,18 +426,18 @@ def generate_value_policy_heatmap(
             annot_kws={"size": 16, "weight": "bold"},
         )
         ax.set_title(f"RM State {rm_state_name} (index={q_rm})")
-        ax.set_xlabel("X (colonna)")
-        ax.set_ylabel("Y (riga)")
+        ax.set_xlabel("X (column)")
+        ax.set_ylabel("Y (row)")
 
-        # Imposta l'aspect ratio a 'equal' per mantenere le celle quadrate
+        # Keep square cells
         ax.set_aspect("equal")
 
-        # Disegna piante come X verdi (opzionale)
+        # Draw plants as green X markers (optional)
         if plants is not None:
             for (p_x, p_y) in plants:
                 ax.scatter(p_x + 0.5, p_y + 0.5, marker="X", s=200, color="green")
 
-        # Disegna muri
+        # Draw walls
         if walls is not None:
             for ((x1, y1), (x2, y2)) in walls:
                 if x1 == x2:
@@ -391,19 +447,18 @@ def generate_value_policy_heatmap(
                     col = min(x1, x2)
                     ax.plot([col + 1, col + 1], [y1, y1 + 1], "k-", lw=2)
 
-        # Mostra le transizioni
-        # Ordine di priorità:
-        # 1. Lettera del goal se presente
-        # 2. Se (g_x,g_y) in coffee_positions -> mostra immagine coffee
-        # 3. Se (g_x,g_y) in letter_positions -> mostra immagine lettera
-        # 4. Altrimenti stella/diamante con nome stato di arrivo
+        # Show transitions with priorities:
+        # 1. Draw the goal letter when available.
+        # 2. If (g_x, g_y) in coffee_positions -> show coffee image.
+        # 3. If (g_x, g_y) in letter_positions -> show letter image.
+        # 4. Otherwise render a star/diamond with the target state name.
         for (from_st, event), (to_st, rew) in transitions.items():
             if from_st == rm_state_name:
                 g_x, g_y = event
                 letter = pos_to_letter.get((g_x, g_y), "")
 
                 if letter:
-                    # Abbiamo un goal con lettera
+                    # Goal location with a letter marker
                     if rew > 0:
                         # ax.scatter(g_x+0.5, g_y+0.5, marker='*', s=350, color='gold', edgecolors='black', linewidths=1)
                         ax.text(
@@ -437,10 +492,9 @@ def generate_value_policy_heatmap(
                             fontweight="bold",
                         )
                 else:
-                    # Nessuna lettera di goal
+                    # No letter provided for this goal
                     if (g_x, g_y) in coffee_positions:
-                        # Mostra l'immagine del caffè
-                        # Riduciamo un po' l'immagine all'interno della cella, margini di 0.1
+                        # Show coffee icon, slightly reduced to fit cell
                         ax.imshow(
                             coffee_image,
                             extent=[g_x + 0.1, g_x + 0.9, g_y + 0.9, g_y + 0.1],
@@ -448,7 +502,7 @@ def generate_value_policy_heatmap(
                             zorder=10,
                         )
                     elif (g_x, g_y) in letter_positions:
-                        # Mostra l'immagine della lettera
+                        # Show letter icon
                         ax.imshow(
                             letter_image,
                             extent=[g_x + 0.1, g_x + 0.9, g_y + 0.9, g_y + 0.1],
@@ -456,7 +510,7 @@ def generate_value_policy_heatmap(
                             zorder=10,
                         )
                     else:
-                        # fallback
+                        # Fallback rendering
                         if rew > 0:
                             # ax.scatter(g_x + 0.5, g_y + 0.5, marker='*', s=300, color='gold', edgecolors='black', linewidths=1)
                             ax.text(
