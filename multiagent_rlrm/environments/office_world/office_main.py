@@ -3,6 +3,7 @@ from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
 from multiagent_rlrm.multi_agent.agent_rl import AgentRL
 from multiagent_rlrm.learning_algorithms.qlearning import QLearning
 from multiagent_rlrm.learning_algorithms.rmax import RMax
+from multiagent_rlrm.learning_algorithms.qrmax_v2 import QRMax_v2
 from multiagent_rlrm.learning_algorithms.ucbvi import UCBVI
 from multiagent_rlrm.learning_algorithms.opsrl import OPSRL
 from multiagent_rlrm.render.render import EnvironmentRenderer
@@ -61,8 +62,10 @@ AVAILABLE_EXPERIMENTS = [
 AVAILABLE_ALGORITHMS = [
     "QL",
     "RMAX",
+    "QRMAX",
     "QRM",
     "RMAXRM",
+    "QRMAXRM",
     "QL_RS",
     "QRM_RS",
     "UCBVI",
@@ -258,7 +261,7 @@ def parse_arguments(default_map, default_experiment, default_algorithm):
         "--Kthreshold",
         type=int,
         default=39,
-        help="Known threshold for RMAX (stochastic env). Default is 30. Set to 1 in deterministic environments.",
+        help="Known threshold for RMAX/QRMAX (stochastic env). Default is 30. Set to 1 in deterministic environments.",
     )
 
     parser.add_argument(
@@ -387,6 +390,9 @@ def setup_environment(args):
 
     # Algorithm mapping
     algorithm_map = {
+        "QRMAX": lambda state_size, rm_states, seed, stoc: create_qrmax(
+            state_size, rm_states, seed, stochastic=stoc
+        ),
         "QRM": lambda state_size, seed, stoc: create_qlearning(
             state_size, seed, use_qrm=True, stochastic=stoc, use_rsh=False
         ),
@@ -398,6 +404,9 @@ def setup_environment(args):
         ),
         "RMAXRM": lambda state_size, seed, stoc: create_rmax(
             state_size, seed, stochastic=stoc, use_qrm=True
+        ),
+        "QRMAXRM": lambda state_size, rm_states, seed, stoc: create_qrmax(
+            state_size, rm_states, seed, stochastic=stoc, use_qrm=True
         ),
         "QL_RS": lambda state_size, seed, stoc: create_qlearning(
             state_size, seed, use_qrm=False, stochastic=stoc, use_rsh=True
@@ -474,7 +483,10 @@ def assign_learning_algorithm(env, agent, algorithm_creator, seed):
     rm_states_count = agent.get_reward_machine().numbers_state()
 
     # Call the algorithm_creator with appropriate arguments based on the type
-    algorithm = algorithm_creator(state_size, seed, env.stochastic)
+    if "QRMAX" in agent.name:
+        algorithm = algorithm_creator(state_size, rm_states_count, seed, env.stochastic)
+    else:
+        algorithm = algorithm_creator(state_size, seed, env.stochastic)
 
     agent.set_learning_algorithm(algorithm)
     agent.get_learning_algorithm().learn_init()
@@ -532,6 +544,35 @@ def create_qlearning(
         use_qrm=use_qrm,
         use_rsh=use_rsh,
         seed=seed,
+    )
+
+
+def create_qrmax(state_size, q_space_size, seed, stochastic=False, use_qrm=False):
+    """
+    Creates an instance of the QRMax learning algorithm with specific parameters.
+
+    :param state_size: The size of the state space.
+    :param q_space_size: The number of states in the Reward Machine.
+    :param seed: Random seed for reproducibility.
+    :param stochastic: stochastic env.
+    :return: Configured QRMax instance.
+    """
+    return QRMax_v2(
+        state_space_size=state_size,
+        action_space_size=4,
+        gamma=args.gamma,
+        VI_delta=args.VIdelta,
+        VI_delta_rel=args.VIdeltarel,
+        q_space_size=q_space_size,  # Use RM states count here
+        nsamplesTE=args.Kthreshold,  # Transition Environment - threshold to consider a transition (s, a) known in the environment
+        nsamplesRE=args.Kthreshold,
+        # Reward Environment - threshold to consider the reward associated with a pair (s, a) known in the environment
+        nsamplesTQ=1,
+        # Transition for Q - threshold to consider a state transition of the Reward Machine automaton (q, s') known given a pair (s, a)
+        nsamplesRQ=1,
+        # Reward for Q - threshold to consider the reward associated with a transition of the Reward Machine automaton (q, s', q')
+        seed=seed,
+        use_qrm=use_qrm,
     )
 
 

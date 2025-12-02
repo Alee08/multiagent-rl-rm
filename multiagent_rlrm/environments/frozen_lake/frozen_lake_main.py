@@ -4,7 +4,7 @@ from multiagent_rlrm.multi_agent.agent_rl import AgentRL
 from multiagent_rlrm.multi_agent.action_encoder import ActionEncoder
 from multiagent_rlrm.learning_algorithms.qlearning import QLearning
 from multiagent_rlrm.learning_algorithms.rmax import RMax
-from multiagent_rlrm.learning_algorithms.qrmax import QRMax
+from multiagent_rlrm.learning_algorithms.qrmax_v2 import QRMax_v2
 from multiagent_rlrm.learning_algorithms.qlearning_lambda import QLearningLambda
 from multiagent_rlrm.utils.utils import encode_state, parse_map_string, parse_map_emoji
 from multiagent_rlrm.render.render import EnvironmentRenderer
@@ -165,7 +165,7 @@ q_learning3 = QLearning(
 )
 
 
-qrmax1 = QRMax(
+qrmax1 = QRMax_v2(
     state_space_size=env.grid_width * env.grid_height * RM_1.numbers_state(),
     action_space_size=4,
     gamma=0.99,
@@ -177,7 +177,7 @@ qrmax1 = QRMax(
     # seed=args.seed,
 )
 
-qrmax3 = QRMax(
+qrmax3 = QRMax_v2(
     state_space_size=env.grid_width * env.grid_height * RM_3.numbers_state(),
     action_space_size=4,
     gamma=0.99,
