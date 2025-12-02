@@ -35,7 +35,7 @@ Below is a compact end-to-end example for two agents in the Frozen Lake environm
 
 ### Step 1: Environment Setup
 First, import the necessary modules and initialize the `MultiAgentFrozenLake` environment with desired parameters such as grid size and hole locations.
-In the above code, `holes` represents the coordinates of obstacles within the grid that the agents must avoid. This setup provides a simple yet challenging environment for agents to learn navigation strategies.
+Here, `holes` is the list of obstacle coordinates that the agents must avoid. This setup provides a simple yet challenging environment for agents to learn navigation strategies.
 ```python
 from multiagent_rlrm.environments.frozen_lake.ma_frozen_lake import MultiAgentFrozenLake
 
@@ -47,12 +47,12 @@ env.penalty_amount = 0      # penalty when falling into a hole
 env.delay_action = False    # optional "wait" bias if True
 ```
 
-### Step 2: Define Agents and Actions
-Create agent instances, set their initial positions, and define possible actions along with their preconditions and effects.
+### Step 2: Define Agents and Action/State Encoders
 
-Below is an example of defining the 'move_up' action, demonstrating how to set up additional actions for the agents. 
-Each action is defined by its preconditions (when the action is applicable) and its effects (the outcome of performing the action).
-
+Create agent instances, set their initial positions, and attach domain-specific encoders
+for state and actions. In Frozen Lake, the `StateEncoderFrozenLake` maps grid positions
+(and RM state) to tabular indices, while `ActionEncoderFrozenLake` registers the
+discrete actions (`up`, `down`, `left`, `right`) for each agent.
 ```python
 from multiagent_rlrm.multi_agent.agent_rl import AgentRL
 from multiagent_rlrm.multi_agent.action_rl import ActionRL
@@ -75,12 +75,14 @@ You define the task as a small automaton (the Reward Machine). The `PositionEven
 ```python
 from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
 from multiagent_rlrm.environments.frozen_lake.detect_event import PositionEventDetector
-
+# Define Reward Machine transitions
 # visit cells in sequence to progress and collect rewards
 e1, e2 = (4,4), (0,0)
+
+# {(current_state, event): (next_state, reward)}
 transitions = {
-    ("q0", e1): ("q1", 10),
-    ("q1", e2): ("qf", 100),  # final RM state
+    ("q0", e1): ("q1", 0),
+    ("q1", e2): ("qf", 1),  # final RM state
 }
 detector = PositionEventDetector({e1, e2})
 
@@ -168,5 +170,5 @@ All algorithms live in `multiagent_rlrm/learning_algorithms` and expose a common
 
 ## License
 
-MAPRL is released under the **Apache 2.0 License**.  
+Multi-Agent RLRM is released under the **Apache 2.0 License**.  
 See the `LICENSE` file for details.
