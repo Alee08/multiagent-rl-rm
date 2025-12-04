@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  rlrm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: multiagent-rlrm:latest
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    environment:
+      - SDL_VIDEODRIVER=dummy
+      - MPLCONFIGDIR=/tmp/matplotlib
+    command: bash
+    tty: true
+    stdin_open: true

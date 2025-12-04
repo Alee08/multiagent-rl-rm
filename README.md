@@ -27,7 +27,14 @@ pip install -e .
 
 ## Installation with docker
 
-Follow instructions in the docker folder.
+Build the container image from the repository root:
+
+```bash
+docker build -f docker/Dockerfile -t multiagent-rlrm .
+docker run --rm -it multiagent-rlrm python
+```
+
+More details (compose, examples, troubleshooting) are available in `docker/README.md`.
 
 
 ## Usage 
