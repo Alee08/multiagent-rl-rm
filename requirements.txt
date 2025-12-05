@@ -6,6 +6,7 @@ numpy==1.26.4
 opencv-python==4.9.0.80
 pillow==10.2.0
 pygame==2.5.2
+pandas==2.2.1
 scipy==1.12.0
 seaborn==0.13.2
 tqdm==4.66.2
