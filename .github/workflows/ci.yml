@@ -2,9 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Run on pushes to any branch so every change gets CI status
+    branches: ["**"]
   pull_request:
-    branches: [main]
+    # Run on PRs targeting any branch
+    branches: ["**"]
   workflow_dispatch:
 
 jobs:
