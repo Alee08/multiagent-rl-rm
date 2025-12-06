@@ -1,4 +1,6 @@
 # Multi-Agent RLRM
+[![PyPI version](https://img.shields.io/pypi/v/multiagent-rl-rm.svg)](https://pypi.org/project/multiagent-rl-rm/)
+[![CI]( https://github.com/alee08/multiagent-rl-rm/actions/workflows/ci.yml/badge.svg)](https://github.com/alee08/multiagent-rl-rm/actions/workflows/ci.yml)
 
 ## Introduction
 
