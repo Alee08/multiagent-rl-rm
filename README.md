@@ -45,6 +45,7 @@ First, import the necessary modules and initialize the `MultiAgentFrozenLake` en
 Here, `holes` is the list of obstacle coordinates that the agents must avoid. This setup provides a simple yet challenging environment for agents to learn navigation strategies.
 ```python
 from multiagent_rlrm.environments.frozen_lake.ma_frozen_lake import MultiAgentFrozenLake
+from multiagent_rlrm.environments.frozen_lake.action_encoder_frozen_lake import ActionEncoderFrozenLake
 
 W, H = 10, 10
 holes = [(2,3), (2,4), (7,0), (7,1), (7,2), (7,3), (7,4), (7,8)]
@@ -59,7 +60,8 @@ env.delay_action = False    # optional "wait" bias if True
 Create agent instances, set their initial positions, and attach domain-specific encoders
 for state and actions. In Frozen Lake, the `StateEncoderFrozenLake` maps grid positions
 (and RM state) to tabular indices, while `ActionEncoderFrozenLake` registers the
-discrete actions (`up`, `down`, `left`, `right`) for each agent.
+discrete actions (`up`, `down`, `left`, `right`) for each agent. Finally, register the
+agents with the environment so `reset`/`step` include them.
 ```python
 from multiagent_rlrm.multi_agent.agent_rl import AgentRL
 from multiagent_rlrm.multi_agent.action_rl import ActionRL
@@ -72,6 +74,9 @@ a2.set_initial_position(6, 2)
 for ag in (a1, a2):
     ag.add_state_encoder(StateEncoderFrozenLake(ag))
     ag.add_action_encoder(ActionEncoderFrozenLake(ag))
+
+env.add_agent(a1)
+env.add_agent(a2)
 ```
 
 
