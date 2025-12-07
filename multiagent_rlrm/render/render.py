@@ -11,6 +11,9 @@ class EnvironmentRenderer:
         self.grid_height = grid_height
         self.agents = agents
         self.object_positions = object_positions or {}  # Positions of in-world objects
+        self.enable_ice_background = bool(
+            self.object_positions.get("use_ice_background", False)
+        )
         self.goals = goals
         self.frames = []
         self.agent_images = {}  # Cache for loaded agent images
@@ -41,6 +44,7 @@ class EnvironmentRenderer:
             "CR7": ("img/CR7.png", (70, 70)),
             "juve": ("img/juve.png", (75, 75)),
             "holes": ("img/hole.png", (90, 90)),
+            "ice": ("img/ice.png", (self.cell_size, self.cell_size)),
             "ponte_immagine": ("img/ponte_.png", (40, 40)),
             "barca_a_remi": ("img/barca_.png", (40, 40)),
             "plant": ("img/pianta.png", (90, 90)),  # Add the plant image
@@ -115,7 +119,15 @@ class EnvironmentRenderer:
             self.clock.tick(60)
         self.screen.fill((255, 255, 255))
 
-        # Draw the grid lines
+        # Draw ice tiles as background for frozen lake cells
+        if self.enable_ice_background:
+            ice_image = self.resources.get("ice")
+            if ice_image:
+                for x in range(self.grid_width):
+                    for y in range(self.grid_height):
+                        self.screen.blit(ice_image, (x * cell_size, y * cell_size))
+
+        # Draw the grid lines above the ice tiles
         for x in range(0, self.grid_width * cell_size, cell_size):
             for y in range(0, self.grid_height * cell_size, cell_size):
                 colore_linea = (0, 0, 0)  # Black for all cells
