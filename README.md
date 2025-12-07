@@ -40,22 +40,36 @@ More details (compose, examples, troubleshooting) are available in `docker/READM
 
 
 ## Usage 
-Below is a compact end-to-end example for two agents in the Frozen Lake environment, each with its own Reward Machine (RM) and tabular Q-learning.
+This repository includes several environments (Frozen Lake, Office World, Pickup & Delivery, etc.). Below is a compact end-to-end example for two agents in the Frozen Lake environment, each with its own Reward Machine (RM) and tabular Q-learning.
 
 ### Step 1: Environment Setup
-First, import the necessary modules and initialize the `MultiAgentFrozenLake` environment with desired parameters such as grid size and hole locations.
-Here, `holes` is the list of obstacle coordinates that the agents must avoid. This setup provides a simple yet challenging environment for agents to learn navigation strategies.
+First, import the necessary modules and initialize the `MultiAgentFrozenLake` environment. You can derive width/height, holes and goals from an emoji layout via `parse_map_emoji` (as in `frozen_lake_main.py`).
 ```python
 from multiagent_rlrm.environments.frozen_lake.ma_frozen_lake import MultiAgentFrozenLake
 from multiagent_rlrm.environments.frozen_lake.action_encoder_frozen_lake import ActionEncoderFrozenLake
+from multiagent_rlrm.utils.utils import parse_map_emoji
 
-W, H = 10, 10
-holes = [(2,3), (2,4), (7,0), (7,1), (7,2), (7,3), (7,4), (7,8)]
+MAP_LAYOUT = """
+  B 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
+ 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
+ 🟩 🟩 🟩 ⛔ ⛔ 🟩 🟩 🟩 🟩 🟩
+ 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
+ 🟩 🟩 🟩 🟩 A  🟩 🟩 🟩 🟩 🟩
+ 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
+ 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
+ ⛔ ⛔ ⛔ ⛔ ⛔ ⛔ ⛔ 🟩 ⛔ ⛔
+ 🟩 🟩 🟩 🟩  C 🟩 🟩 🟩 🟩 🟩
+ 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
+"""
+
+holes, goals, (W, H) = parse_map_emoji(MAP_LAYOUT)
 env = MultiAgentFrozenLake(width=W, height=H, holes=holes)
-env.frozen_lake_stochastic = True      # slip/stochastic dynamics
-env.penalty_amount = 0      # penalty when falling into a hole
-env.delay_action = False    # optional "wait" bias if True
+env.frozen_lake_stochastic = False      # deterministic here; set True to enable slip/stochastic dynamics
+env.penalty_amount = 0                  # penalty when falling into a hole
+env.delay_action = False                # optional "wait" bias if True
 ```
+
+
 
 ### Step 2: Define Agents and Action/State Encoders
 
@@ -63,15 +77,15 @@ Create agent instances, set their initial positions, and attach domain-specific 
 for state and actions. In Frozen Lake, the `StateEncoderFrozenLake` maps grid positions
 (and RM state) to tabular indices, while `ActionEncoderFrozenLake` registers the
 discrete actions (`up`, `down`, `left`, `right`) for each agent. Finally, register the
-agents with the environment so `reset`/`step` include them.
+agents with the environment so `reset`/`step` include them. Coordinates below match `frozen_lake_main.py`.
 ```python
 from multiagent_rlrm.multi_agent.agent_rl import AgentRL
 from multiagent_rlrm.multi_agent.action_rl import ActionRL
 from multiagent_rlrm.environments.frozen_lake.state_encoder_frozen_lake import StateEncoderFrozenLake
 
 a1, a2 = AgentRL("a1", env), AgentRL("a2", env)
-a1.set_initial_position(4, 0)
-a2.set_initial_position(6, 2)
+a1.set_initial_position(5, 0)
+a2.set_initial_position(0, 0)
 
 for ag in (a1, a2):
     ag.add_state_encoder(StateEncoderFrozenLake(ag))
@@ -84,24 +98,23 @@ env.add_agent(a2)
 
 
 ### Step 3: Define Reward Machines (one per agent)
-You define the task as a small automaton (the Reward Machine). The `PositionEventDetector` turns grid visits into events; here, reaching (4,4) triggers a transition from q0→q1 (+0), then reaching (0,0) triggers q1→qf (+1, final). Each agent gets its own RM (rm1, rm2), so progress and rewards are tracked independently even in the same environment. This cleanly separates what should be achieved (waypoints/sequence) from how the agent moves in a stochastic world, and you can extend it by adding more waypoints, branches, or different detectors.
+You define the task as a small automaton (the Reward Machine). The `PositionEventDetector` turns grid visits into events; here we mirror `frozen_lake_main.py`: reach A then B then C. Each agent gets its own RM (rm1, rm2), so progress and rewards are tracked independently even in the same environment.
 
 ```python
 from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
 from multiagent_rlrm.environments.frozen_lake.detect_event import PositionEventDetector
-# Define Reward Machine transitions
-# visit cells in sequence to progress and collect rewards
-e1, e2 = (4,4), (0,0)
 
-# {(current_state, event): (next_state, reward)}
+# Events are the goal positions from the parsed map
+event_detector = PositionEventDetector(set(goals.values()))
+# transitions = {(current_state, event): (next_state, reward)}
 transitions = {
-    ("q0", e1): ("q1", 0),
-    ("q1", e2): ("qf", 1),  # final RM state
+    ("state0", goals["A"]): ("state1", 0),
+    ("state1", goals["B"]): ("state2", 0),
+    ("state2", goals["C"]): ("state3", 1),
 }
-detector = PositionEventDetector({e1, e2})
 
-rm1 = RewardMachine(transitions, detector)
-rm2 = RewardMachine(transitions, detector)
+rm1 = RewardMachine(transitions, event_detector)
+rm2 = RewardMachine(transitions, event_detector)
 a1.set_reward_machine(rm1)
 a2.set_reward_machine(rm2)
 ```
@@ -166,6 +179,11 @@ for ep in range(EPISODES):
 ```
 In this loop, agents continuously assess their environment, make decisions, and act accordingly. The env.step(actions) method encapsulates the agents' interactions with the environment, including executing actions, receiving new observations, calculating rewards, and updating the agents' policies based on the results. This streamlined process simplifies the learning loop and focuses on the essential elements of agent-environment interaction.
 
+### Frozen Lake layout & sample episode
+
+Greedy run saved at episode 1000 (deterministic dynamics, `frozen_lake_stochastic=False`). Run `multiagent_rlrm/environments/frozen_lake/frozen_lake_main.py` with `RENDER_EVERY=100` to generate the files; they are saved next to the script under `episodes/episode_1000.*`. Rendering uses pygame with a side panel showing RM state, events, and per-agent steps.
+
+![Frozen Lake Episode 1000](multiagent_rlrm/environments/frozen_lake/episodes/episode_1000.gif)
 
 ## Implemented learning algorithms
 
