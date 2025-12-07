@@ -54,7 +54,11 @@ MAP_LAYOUT = """
 
 # --- Environment and agents ----------------------------------------------- #
 holes, goals, dimensions = parse_map_emoji(MAP_LAYOUT)
-object_positions = {"holes": holes}
+object_positions = {
+    "holes": holes,
+    "use_ice_background": True,
+    "show_rm_panel": True,
+}
 
 env = MultiAgentFrozenLake(
     width=dimensions[0],

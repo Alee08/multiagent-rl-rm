@@ -14,6 +14,8 @@ class EnvironmentRenderer:
         self.enable_ice_background = bool(
             self.object_positions.get("use_ice_background", False)
         )
+        self.show_rm_panel = bool(self.object_positions.get("show_rm_panel", False))
+        self.panel_width = 260  # Extra space on the right for overlays (e.g., RM)
         self.goals = goals
         self.frames = []
         self.agent_images = {}  # Cache for loaded agent images
@@ -57,7 +59,7 @@ class EnvironmentRenderer:
             self.resources[name] = self.load_resource(path, size)
 
         # Configure the pygame window
-        screen_width = self.grid_width * self.cell_size
+        screen_width = self.grid_width * self.cell_size + self.panel_width
         screen_height = self.grid_height * self.cell_size
         self.screen = pygame.display.set_mode((screen_width, screen_height))
         self.clock = pygame.time.Clock()
@@ -244,12 +246,145 @@ class EnvironmentRenderer:
                 base_x = position[0] * cell_size + (cell_size - image_width) // 2
                 base_y = position[1] * cell_size + (cell_size - image_height) // 2
                 self.screen.blit(agent_image, (base_x, base_y))
+
+        # Overlay: show Reward Machine state per agent on the right panel
+        self.render_rm_panel(obs)
         pygame.display.flip()
 
         # if episode % 5000 == 0:
         image_data = pygame.surfarray.array3d(pygame.display.get_surface())
         image_data = image_data.transpose([1, 0, 2])
         self.frames.append(image_data)
+
+    def render_rm_panel(self, obs):
+        """Draw Reward Machine states for each agent on a side panel."""
+        if not self.show_rm_panel:
+            return
+
+        panel_x = self.grid_width * self.cell_size + 10
+        panel_left = self.grid_width * self.cell_size
+        panel_top = 0
+        panel_height = self.grid_height * self.cell_size
+
+        # Panel background
+        bg_rect = pygame.Rect(panel_left, panel_top, self.panel_width, panel_height)
+        pygame.draw.rect(self.screen, (245, 245, 245), bg_rect)
+
+        y = 10
+
+        title = self.font.render("Reward Machine", True, (20, 20, 20))
+        self.screen.blit(title, (panel_x, y))
+        y += title.get_height() + 10
+
+        has_rm = False
+        for ag in self.agents:
+            rm = getattr(ag, "reward_machine", None)
+            if not rm:
+                continue
+            has_rm = True
+            # Resolve steps source lazily if not provided
+            steps_val = getattr(self, "agent_steps_view", None)
+            if steps_val is None:
+                env_ref = getattr(ag, "ma_problem", None)
+                steps_val = getattr(env_ref, "agent_steps", None) if env_ref else None
+            current_state = rm.get_current_state()
+            final_state = rm.get_final_state()
+            states_ordered = list(rm.state_indices.keys())
+            label = f"{ag.name}"
+            txt = self.font.render(label, True, (0, 0, 0))
+            self.screen.blit(txt, (panel_x, y))
+            y += txt.get_height() + 2
+
+            # Steps label (if available)
+            steps_dict = {}
+            env_ref = getattr(ag, "ma_problem", None)
+            if env_ref and getattr(env_ref, "agent_steps", None) is not None:
+                steps_dict = env_ref.agent_steps
+            elif getattr(self, "agent_steps_view", None) is not None:
+                steps_dict = getattr(self, "agent_steps_view")
+            steps_dict = steps_dict or {}
+            if ag.name in steps_dict:
+                steps_label = f"steps: {steps_dict.get(ag.name, 0)}"
+                steps_txt = self.font.render(steps_label, True, (40, 40, 40))
+                self.screen.blit(steps_txt, (panel_x, y))
+                y += steps_txt.get_height() + 2
+
+            # State label
+            try:
+                idx = rm.get_state_index(current_state)
+                state_label = f"state: {current_state} (q={idx})"
+            except Exception:
+                state_label = f"state: {current_state}"
+            state_txt = self.font.render(state_label, True, (30, 30, 30))
+            self.screen.blit(state_txt, (panel_x, y))
+            y += state_txt.get_height() + 2
+
+            # Event label (detected on current obs)
+            event_val = None
+            try:
+                event_val = rm.event_detector.detect_event(obs.get(ag.name, {}))
+            except Exception:
+                event_val = None
+            event_label = (
+                f"event: {event_val}" if event_val is not None else "event: None"
+            )
+            event_txt = self.font.render(event_label, True, (60, 60, 60))
+            self.screen.blit(event_txt, (panel_x, y))
+            y += event_txt.get_height() + 6
+
+            # Draw bullet timeline for RM states
+            n_states = len(states_ordered)
+            if n_states > 1:
+                available = self.panel_width - 40
+                spacing = max(26, min(70, available / (n_states - 1)))
+            else:
+                spacing = 0
+            radius = int(max(8, min(16, spacing / 2 if spacing else 10)))
+
+            timeline_width = (n_states - 1) * spacing if n_states > 1 else 0
+            x_start = panel_left + (self.panel_width - timeline_width) / 2
+            for idx, state_name in enumerate(states_ordered):
+                cx = x_start + idx * spacing
+                cy = y + radius
+                is_final = state_name == final_state
+                base_color = (0, 120, 0) if is_final else (0, 0, 0)
+
+                # Base circle (white) and connectors
+                pygame.draw.circle(self.screen, (255, 255, 255), (cx, cy), radius)
+                pygame.draw.circle(self.screen, (50, 50, 50), (cx, cy), radius, 1)
+
+                # Highlight the current state with a bright fill/halo
+                if state_name == current_state:
+                    highlight = (180, 240, 180)  # light green
+                    pygame.draw.circle(self.screen, highlight, (cx, cy), radius + 3)
+                    pygame.draw.circle(self.screen, highlight, (cx, cy), radius)
+                    pygame.draw.circle(self.screen, base_color, (cx, cy), radius, 1)
+                else:
+                    pygame.draw.circle(self.screen, base_color, (cx, cy), radius, 1)
+
+                # Label inside the circle
+                label = f"s{idx}"
+                # Scale font to circle size for readability
+                font_size = max(10, min(18, int(radius * 1.6)))
+                label_font = pygame.font.SysFont("Arial", font_size)
+                txt = label_font.render(label, True, (0, 0, 0))
+                txt_rect = txt.get_rect(center=(cx, cy))
+                self.screen.blit(txt, txt_rect)
+                # Draw connector line to next state
+                if idx < len(states_ordered) - 1:
+                    next_cx = x_start + (idx + 1) * spacing
+                    pygame.draw.line(
+                        self.screen,
+                        (100, 100, 100),
+                        (cx + radius, cy),
+                        (next_cx - radius, cy),
+                        2,
+                    )
+            y += radius * 2 + 10
+
+        if not has_rm:
+            msg = self.font.render("No RM attached", True, (90, 90, 90))
+            self.screen.blit(msg, (panel_x, y))
 
     """def save_episode(self, episode):
 
