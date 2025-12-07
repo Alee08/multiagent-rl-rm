@@ -1,51 +1,45 @@
-import numpy as np
-from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
-from multiagent_rlrm.multi_agent.agent_rl import AgentRL
-from multiagent_rlrm.multi_agent.action_encoder import ActionEncoder
-from multiagent_rlrm.learning_algorithms.qlearning import QLearning
-from multiagent_rlrm.learning_algorithms.rmax import RMax
-from multiagent_rlrm.learning_algorithms.qrmax_v2 import QRMax_v2
-from multiagent_rlrm.learning_algorithms.qlearning_lambda import QLearningLambda
-from multiagent_rlrm.utils.utils import encode_state, parse_map_string, parse_map_emoji
-from multiagent_rlrm.render.render import EnvironmentRenderer
-from multiagent_rlrm.environments.frozen_lake.state_encoder_frozen_lake import (
-    StateEncoderFrozenLake,
-)
-from multiagent_rlrm.environments.frozen_lake.ma_frozen_lake import (
-    MultiAgentFrozenLake,
-)
-from multiagent_rlrm.render.heatmap import (
-    generate_heatmaps,
-    generate_heatmaps_for_agents,
-)
-from multiagent_rlrm.environments.utils_envs.evaluation_metrics import *
-import wandb
 import copy
-import json
-import os
-from multiagent_rlrm.environments.frozen_lake.detect_event import (
-    PositionEventDetector,
-)  # Import the new EventDetector
-from multiagent_rlrm.multi_agent.wrappers.rm_environment_wrapper import (
-    RMEnvironmentWrapper,
-)  # Import the wrapper
+import numpy as np
+import wandb
+
 from multiagent_rlrm.environments.frozen_lake.action_encoder_frozen_lake import (
     ActionEncoderFrozenLake,
 )
+from multiagent_rlrm.environments.frozen_lake.detect_event import PositionEventDetector
+from multiagent_rlrm.environments.frozen_lake.ma_frozen_lake import (
+    MultiAgentFrozenLake,
+)
+from multiagent_rlrm.environments.frozen_lake.state_encoder_frozen_lake import (
+    StateEncoderFrozenLake,
+)
+from multiagent_rlrm.environments.utils_envs.evaluation_metrics import (
+    get_epsilon_summary,
+    prepare_log_data,
+    save_q_tables,
+    update_actions_log,
+    update_successes,
+)
+from multiagent_rlrm.learning_algorithms.qlearning import QLearning
+from multiagent_rlrm.learning_algorithms.qrmax_v2 import QRMax_v2
+from multiagent_rlrm.multi_agent.agent_rl import AgentRL
+from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
+from multiagent_rlrm.multi_agent.wrappers.rm_environment_wrapper import (
+    RMEnvironmentWrapper,
+)
+from multiagent_rlrm.render.heatmap import generate_heatmaps_for_agents
+from multiagent_rlrm.render.render import EnvironmentRenderer
+from multiagent_rlrm.utils.utils import parse_map_emoji
 
 
-NUM_EPISODES = 30000
-# grid_height = 10
-# grid_width = 10
-WANDB_PROJECT = "ma_frozen_lake"
-WANDB_ENTITY = "..."
+NUM_EPISODES = 30_000
+RENDER_EVERY = 100  # Set to None to disable video rendering
+SEED = 111
 
-
-# Initialize WandB
-# wandb.init(project=WANDB_PROJECT, entity=WANDB_ENTITY, mode="disabled")
+# WandB is disabled; keep init for a consistent logging interface
 wandb.init(project="deep_FL", entity="alee8", mode="disabled")
 
-map_frozenk_lake10x10 = """
+# Map with three goals (A, B, C) and some holes
+MAP_LAYOUT = """
   B 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
  🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
  🟩 🟩 🟩 ⛔ ⛔ 🟩 🟩 🟩 🟩 🟩
@@ -56,103 +50,52 @@ map_frozenk_lake10x10 = """
  ⛔ ⛔ ⛔ ⛔ ⛔ ⛔ ⛔ 🟩 ⛔ ⛔
  🟩 🟩 🟩 🟩  C 🟩 🟩 🟩 🟩 🟩
  🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩 🟩
- """
+"""
 
-map_frozenk_lake5x5 = """
- B  🟩 🟩 🟩 🟩 
- 🟩 🟩 🟩 🟩 🟩
- 🟩 🟩 🟩 ⛔ ⛔
- 🟩 🟩 🟩 🟩 🟩
- ⛔ ⛔ ⛔ ⛔ A
- """
+# --- Environment and agents ----------------------------------------------- #
+holes, goals, dimensions = parse_map_emoji(MAP_LAYOUT)
+object_positions = {"holes": holes}
 
-map_frozenk_lake3x3 = """
- 🟩 🟩 🟩 
- 🟩 ⛔ 🟩 
- 🟩 🟩  A 
- """
-
-map = map_frozenk_lake10x10
-holes, goals, dimensions = parse_map_emoji(map)
-# holes, goals = parse_map_emoji(map_frozenk_lake3x3)
-print("Holes:", holes)
-print("Goals:", goals)
-print("Dimensions:", dimensions)
-object_positions = {
-    "holes": holes,
-}
 env = MultiAgentFrozenLake(
     width=dimensions[0],
     height=dimensions[1],
     holes=holes,
 )
-# breakpoint()
-
 env.frozen_lake_stochastic = False
 env.penalty_amount = 0
-env.delay_action = False  # Enable delayed "wait" action behavior
+env.delay_action = False
 
-
-a3 = AgentRL("a3", env)
+# Two agents: a1 learns with Q-Learning, a2 with QRMax
 a1 = AgentRL("a1", env)
-a1.set_initial_position(0, 0)  # Also add position to the agent's state
-a3.set_initial_position(1, 0)  # Also add position to the agent's state
+a2 = AgentRL("a2", env)
 
+a1.set_initial_position(5, 0)
+a2.set_initial_position(0, 0)
 
-a3.add_state_encoder(StateEncoderFrozenLake(a3))
-a1.add_state_encoder(StateEncoderFrozenLake(a1))
+for ag in (a1, a2):
+    ag.add_state_encoder(StateEncoderFrozenLake(ag))
+    ag.add_action_encoder(ActionEncoderFrozenLake(ag))
 
-a1.add_action_encoder(ActionEncoderFrozenLake(a1))
-a3.add_action_encoder(ActionEncoderFrozenLake(a3))
-
-
-# Define Reward Machine transitions
-# {(current_state, event): (next_state, reward)}
+# Reward Machine: reach A -> B -> C
 transitions = {
     ("state0", goals["A"]): ("state1", 10),
     ("state1", goals["B"]): ("state2", 15),
     ("state2", goals["C"]): ("state3", 20),
 }
+event_detector = PositionEventDetector(set(goals.values()))
+rm_q = RewardMachine(transitions, event_detector)
+rm_qr = RewardMachine(transitions, event_detector)
 
-# Create EventDetectors
-positions = {goals["A"], goals["B"], goals["C"]}
-event_detector = PositionEventDetector(positions)
+a1.set_reward_machine(rm_q)
+a2.set_reward_machine(rm_qr)
 
-# Create Reward Machines
-RM_1 = RewardMachine(transitions, event_detector)
-RM_3 = RewardMachine(transitions, event_detector)
+env.add_agent(a1)
+env.add_agent(a2)
+rm_env = RMEnvironmentWrapper(env, [a1, a2])
 
-a1.set_reward_machine(RM_1)
-a3.set_reward_machine(RM_3)
-
-# env.add_agent(a1)
-env.add_agent(a3)
-
-# Wrap the environment with RMEnvironmentWrapper
-rm_env = RMEnvironmentWrapper(env, [a3])
-
-rmax = RMax(
-    state_space_size=env.grid_width * env.grid_height * RM_3.numbers_state(),
-    action_space_size=4,
-    s_a_threshold=100,
-    max_reward=1,
-    gamma=0.99,
-    epsilon_one=0.99,
-)
-
-q_learning1 = QLearning(
-    state_space_size=env.grid_width * env.grid_height * RM_1.numbers_state(),
-    action_space_size=4,
-    learning_rate=1,
-    gamma=0.99,
-    action_selection="greedy",
-    epsilon_start=0.01,
-    epsilon_end=0.01,
-    epsilon_decay=0.9995,
-)
-
-q_learning3 = QLearning(
-    state_space_size=env.grid_width * env.grid_height * RM_3.numbers_state(),
+# Tabular Q-Learning for a1
+q_learning = QLearning(
+    state_space_size=env.grid_width * env.grid_height * rm_q.numbers_state(),
     action_space_size=4,
     learning_rate=1,
     gamma=0.99,
@@ -163,38 +106,22 @@ q_learning3 = QLearning(
     qtable_init=2,
     use_qrm=True,
 )
+a1.set_learning_algorithm(q_learning)
 
-
-qrmax1 = QRMax_v2(
-    state_space_size=env.grid_width * env.grid_height * RM_1.numbers_state(),
+# Model-based QRMax for a2
+q_learning2 = QLearning(
+    state_space_size=env.grid_width * env.grid_height * rm_qr.numbers_state(),
     action_space_size=4,
+    learning_rate=1,
     gamma=0.99,
-    q_space_size=4,
-    nsamplesTE=100,  # Transition Environment - threshold to consider (s, a) transition in the environment as known
-    nsamplesRE=1,  # Reward Environment - threshold to consider the reward associated with a pair (s, a) as known
-    nsamplesTQ=1,  # Transition for Q - threshold to consider a RM state transition (q, s') given (s, a) as known
-    nsamplesRQ=1,  # Reward for Q - threshold to consider the reward of a RM transition (q, s', q') as known
-    # seed=args.seed,
+    action_selection="greedy",
+    epsilon_start=0.01,
+    epsilon_end=0.01,
+    epsilon_decay=0.9995,
+    qtable_init=2,
+    use_qrm=True,
 )
-
-qrmax3 = QRMax_v2(
-    state_space_size=env.grid_width * env.grid_height * RM_3.numbers_state(),
-    action_space_size=4,
-    gamma=0.99,
-    q_space_size=4,
-    nsamplesTE=100,  # Transition Environment - threshold to consider (s, a) transition in the environment as known
-    nsamplesRE=1,  # Reward Environment - threshold to consider the reward associated with a pair (s, a) as known
-    nsamplesTQ=1,  # Transition for Q - threshold to consider a RM state transition (q, s') given (s, a) as known
-    nsamplesRQ=1,  # Reward for Q - threshold to consider the reward of a RM transition (q, s', q') as known
-    # seed=args.seed,
-)
-
-
-# a1.set_learning_algorithm(qrmax1)
-a3.set_learning_algorithm(q_learning3)
-
-# Load QTABLE
-# a3.get_learning_algorithm().load_qtable("q_table.pkl")
+a2.set_learning_algorithm(q_learning2)
 
 renderer = EnvironmentRenderer(
     env.grid_width,
@@ -203,99 +130,112 @@ renderer = EnvironmentRenderer(
     object_positions=object_positions,
     goals=goals,
 )
-
 renderer.init_pygame()
 
+# --- Stats and logging ----------------------------------------------------- #
+success_per_agent = {agent.name: 0 for agent in rm_env.agents}
+rewards_per_episode = {agent.name: [] for agent in rm_env.agents}
+moving_avg_window = 1000
+actions_log = {}
 
-successi_per_agente = {agent.name: 0 for agent in rm_env.agents}
-ricompense_per_episodio = {agent.name: [] for agent in rm_env.agents}
-finestra_media_mobile = 1000
-actions_log = {agent.name: [] for agent in rm_env.agents}
-success_counts = {agent.name: 0 for agent in rm_env.agents}
-q_tables = {}
-rm_env.reset(111)
-# a1.get_learning_algorithm().learn_init()
-a3.get_learning_algorithm().learn_init()
-from multiagent_rlrm.utils.utils import *
+rm_env.reset(SEED)
+a1.get_learning_algorithm().learn_init()
+a2.get_learning_algorithm().learn_init()
 
-for episode in range(NUM_EPISODES):
-    states, infos = rm_env.reset(111)
+# Helper to run and record a greedy (best-action) episode
+def record_greedy_episode(tag="greedy", seed=SEED):
+    renderer.frames = []  # Clear previous recording frames
+    states, infos = rm_env.reset(seed)
     done = {a.name: False for a in rm_env.agents}
-    rewards_agents = {
-        a.name: 0 for a in rm_env.agents
-    }  # Initialize per-episode rewards
-    record_episode = episode % 200000 == 0 and episode != 0
-    # record_episode = False
+    renderer.render(tag, states)
+
+    while not all(done.values()):
+        actions = {}
+        for ag in rm_env.agents:
+            current_state = rm_env.env.get_state(ag)
+            actions[ag.name] = ag.select_action(current_state, best=True)
+
+        states, rewards, done, truncations, infos = rm_env.step(actions)
+        renderer.render(tag, states)
+
+        if all(truncations.values()):
+            break
+
+    renderer.save_episode(tag)
+
+
+# --- Training loop --------------------------------------------------------- #
+for episode in range(NUM_EPISODES):
+    states, infos = rm_env.reset(SEED)
+    done = {a.name: False for a in rm_env.agents}
+    rewards_agents = {a.name: 0 for a in rm_env.agents}
+    record_episode = bool(RENDER_EVERY) and episode % RENDER_EVERY == 0
+
     if record_episode:
-        renderer.render(episode, states)  # Capture frames during the episode
+        renderer.render(episode, states)
 
     while not all(done.values()):
         actions = {}
         rewards = {a.name: 0 for a in rm_env.agents}
         infos = {a.name: {} for a in rm_env.agents}
+
         for ag in rm_env.agents:
             current_state = rm_env.env.get_state(ag)
-            action = ag.select_action(current_state)
-            actions[ag.name] = action
-            # Log actions in the last episode
-            update_actions_log(actions_log, actions, NUM_EPISODES)
+            actions[ag.name] = ag.select_action(current_state)
+
+        update_actions_log(actions_log, actions, episode)
 
         new_states, rewards, done, truncations, infos = rm_env.step(actions)
 
-        for agent in rm_env.agents:
-            """if not rm_env.env.active_agents[agent.name]:
-            continue"""
-            terminated = done[agent.name] or truncations[agent.name]
-            agent.update_policy(
-                state=states[agent.name],
-                action=actions[agent.name],
-                reward=rewards[agent.name],
-                next_state=new_states[agent.name],
+        for ag in rm_env.agents:
+            terminated = done[ag.name] or truncations[ag.name]
+            ag.update_policy(
+                state=states[ag.name],
+                action=actions[ag.name],
+                reward=rewards[ag.name],
+                next_state=new_states[ag.name],
                 terminated=terminated,
-                infos=infos[agent.name],
+                infos=infos[ag.name],
             )
+            rewards_agents[ag.name] += rewards[ag.name]
 
-            rewards_agents[agent.name] += rewards[agent.name]
         states = copy.deepcopy(new_states)
-        # end-training step
 
         if record_episode:
-            renderer.render(episode, states)  # Capture frames during the episode
+            renderer.render(episode, states)
 
         if all(truncations.values()):
             break
-    if record_episode:
-        renderer.save_episode(episode)  # Save video only at the end of the episode
 
-    update_successes(rm_env.env, rewards_agents, successi_per_agente, done)
+    if record_episode:
+        renderer.save_episode(episode)
+
+    update_successes(rm_env.env, rewards_agents, success_per_agent, done)
     log_data = prepare_log_data(
         rm_env.env,
         episode,
         rewards_agents,
-        successi_per_agente,
-        ricompense_per_episodio,
-        finestra_media_mobile,
+        success_per_agent,
+        rewards_per_episode,
+        moving_avg_window,
     )
-
-    """if episode % 1000 == 0:
-        # Evaluate policy every 1000 episodes
-        success_rate_per_agente = test_policy_optima(rm_env, episodi_test=100)
-        for ag_name, success_rate in success_rate_per_agente.items():
-            log_data[f"success_rate_optima_{ag_name}"] = success_rate"""
 
     wandb.log(log_data, step=episode)
     epsilon_str = get_epsilon_summary(rm_env.agents)
-
     print(
-        f"Episodio {episode + 1}: Ricompensa = {rewards_agents}, Total Step: {rm_env.env.timestep}, Agents Step = {rm_env.env.agent_steps}, Epsilon agents= [{epsilon_str}]"
+        f"Episode {episode + 1}: Rewards = {rewards_agents}, "
+        f"Total Step: {rm_env.env.timestep}, Agents Step = {rm_env.env.agent_steps}, "
+        f"Epsilon agents= [{epsilon_str}]"
     )
 
-# Save QTABLE
-a3.get_learning_algorithm().save_qtable("q_table_100x100.pkl")
-# Save Q-tables at the last episode
+    # Optional greedy roll-out recording every RENDER_EVERY episodes
+    if RENDER_EVERY and episode > 0 and episode % RENDER_EVERY == 0:
+        print(f"Recording greedy episode at training episode {episode}...")
+        record_greedy_episode(tag=f"greedy_ep_{episode}", seed=SEED)
+
+# --- Save results ---------------------------------------------------------- #
 save_q_tables(rm_env.agents)
-# After training or during training at specified intervals
-data = np.load(f"data/q_tables.npz")
+data = np.load("data/q_tables.npz")
 generate_heatmaps_for_agents(
     rm_env.agents, data, grid_dims=(dimensions[0], dimensions[1])
 )

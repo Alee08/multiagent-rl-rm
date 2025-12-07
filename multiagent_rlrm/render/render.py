@@ -36,12 +36,6 @@ class EnvironmentRenderer:
 
         # Resource dictionary with file paths and sizes
         resource_info = {
-            "colosseo": ("img/colosseo.png", (90, 90)),
-            "piazza": ("img/piazza.png", (90, 90)),
-            "bcn": ("img/bcn.png", (95, 95)),
-            "madrid": ("img/mdn.png", (90, 90)),
-            "battlo": ("img/battlo.png", (90, 90)),
-            "piazza_di_spagna": ("img/piazza_di_spagna2.png", (95, 95)),
             "ita_man": ("img/ita_man.png", (85, 85)),
             "bcn_man": ("img/bcn_man2.png", (80, 80)),
             "CR7": ("img/CR7.png", (70, 70)),
@@ -114,8 +108,11 @@ class EnvironmentRenderer:
     def render(self, episode, obs):
         """Draw the current environment state and collect frames for export."""
         cell_size = 100
-        # Tune the update speed for early training versus final episodes
-        self.clock.tick(6000 if episode < 89998 else 60)
+        # Tune the update speed for early training versus final episodes; fallback for tags
+        if isinstance(episode, int):
+            self.clock.tick(6000 if episode < 89998 else 60)
+        else:
+            self.clock.tick(60)
         self.screen.fill((255, 255, 255))
 
         # Draw the grid lines

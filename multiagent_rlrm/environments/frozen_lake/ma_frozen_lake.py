@@ -1,6 +1,5 @@
 import numpy as np
 import random
-from multiagent_rlrm.utils.utils import encode_state
 from multiagent_rlrm.learning_algorithms.qlearning_lambda import QLearningLambda
 from multiagent_rlrm.learning_algorithms.qlearning import QLearning
 from multiagent_rlrm.multi_agent.base_environment import BaseEnvironment
@@ -34,6 +33,8 @@ class MultiAgentFrozenLake(BaseEnvironment):
         self.random_start_positions = (
             False  # if True, agents start in random free cells
         )
+        # Dedicated RNG for reproducibility across reset/step
+        self.rng = np.random.default_rng()
 
     def reset(self, seed=123, options=None):
         """
@@ -51,13 +52,17 @@ class MultiAgentFrozenLake(BaseEnvironment):
         self.agent_fail = {agent.name: False for agent in self.agents}
         self.agent_steps = {agent.name: 0 for agent in self.agents}
 
-        rng = (
+        self.rng = (
             np.random.default_rng(seed) if seed is not None else np.random.default_rng()
         )
+        rng = self.rng
         if self.random_start_positions:
             start_positions = self._sample_start_positions(rng)
         else:
-            start_positions = [(0, 0) for _ in self.agents]
+            # Use the explicitly configured initial positions when not randomizing
+            start_positions = [
+                getattr(ag, "initial_position", ag.position) for ag in self.agents
+            ]
 
         for agent, start_pos in zip(self.agents, start_positions):
             agent.set_initial_position(*start_pos)
@@ -70,7 +75,7 @@ class MultiAgentFrozenLake(BaseEnvironment):
                 l_algo.reset_e_table()
 
             # Initial state returned by agent
-            initial_position = agent.get_state()
+            agent.get_state()
 
             # Signal end-of-episode for plain Q-learning (if needed)
             if isinstance(l_algo, QLearning):
@@ -93,7 +98,10 @@ class MultiAgentFrozenLake(BaseEnvironment):
         infos = {a.name: {} for a in self.agents}
 
         for agent in self.agents:
-            if not self.active_agents[agent.name]:
+            rm = getattr(agent, "reward_machine", None)
+            rm_done = rm and rm.get_current_state() == rm.get_final_state()
+
+            if not self.active_agents[agent.name] or rm_done:
                 # Provide fallback info for inactive agents
                 infos[agent.name]["prev_s"] = self.get_state(agent)
                 infos[agent.name]["s"] = self.get_state(agent)
@@ -176,22 +184,27 @@ class MultiAgentFrozenLake(BaseEnvironment):
         """
         Checks which agents should terminate or truncate.
 
-        Termination conditions:
-        - timestep exceeds limit (1000)
+        Termination conditions (evaluated per agent):
+        - per-agent step limit (or global timestep fallback) exceeds 1000
         - agent falls into a hole (fail state)
         """
         terminations = {a.name: False for a in self.agents}
         truncations = {a.name: False for a in self.agents}
 
         for agente in self.agents:
-            if self.timestep > 1000:
+            # Stop an agent that has been running too long
+            if self.agent_steps.get(agente.name, 0) > 1000 or self.timestep > 1000:
                 terminations[agente.name] = True
                 truncations[agente.name] = True
 
-            # If any agent fails, all terminate
+            # Stop an agent whose Reward Machine has reached the final state
+            rm = getattr(agente, "reward_machine", None)
+            if rm and rm.get_current_state() == rm.get_final_state():
+                terminations[agente.name] = True
+
+            # Only the failing agent terminates if it falls into a hole
             if self.agent_fail[agente.name]:
-                terminations = {a.name: True for a in self.agents}
-                truncations = {a.name: True for a in self.agents}
+                terminations[agente.name] = True
 
         return terminations, truncations
 
@@ -251,5 +264,6 @@ class MultiAgentFrozenLake(BaseEnvironment):
             }
 
         actions, probabilities = action_map[intended_action]
-        chosen_action = np.random.choice(actions, p=probabilities)
+        rng = self.rng or np.random.default_rng()
+        chosen_action = rng.choice(actions, p=probabilities)
         return chosen_action

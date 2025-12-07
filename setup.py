@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import shutil
 from pathlib import Path
 
 from setuptools import find_packages, setup
@@ -7,6 +8,11 @@ from setuptools import find_packages, setup
 BASE_DIR = Path(__file__).parent
 README = BASE_DIR / "README.md"
 VERSION_FILE = BASE_DIR / "multiagent_rlrm" / "__init__.py"
+EGG_INFO_DIR = BASE_DIR / "multiagent_rl_rm.egg-info"
+
+# Ensure we always rebuild metadata so the installed version matches __version__
+if EGG_INFO_DIR.exists():
+    shutil.rmtree(EGG_INFO_DIR)
 
 version_namespace = {}
 if VERSION_FILE.exists():
