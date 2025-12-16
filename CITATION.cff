@@ -5,8 +5,16 @@ title: "Multi-Agent RLRM"
 abstract: "A Python library for multi-agent reinforcement learning with Reward Machines, including tools to generate Reward Machine specifications from natural language (NL->RM) via LLM-backed pipelines."
 version: "0.2.0"
 date-released: "2025-12-16"
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.17951631
+    description: "Concept DOI (always points to the latest version)"
+  - type: doi
+    value: 10.5281/zenodo.17951632
+    description: "Version DOI for v0.2.0"
 license: "Apache-2.0"
 repository-code: "https://github.com/Alee08/multi-agent-rl-rm"
+repository-artifact: "https://doi.org/10.5281/zenodo.17951632"
 url: "https://github.com/Alee08/multi-agent-rl-rm"
 authors:
   - family-names: "Trapasso"

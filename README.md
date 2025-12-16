@@ -1,6 +1,8 @@
 # Multi-Agent RLRM
 [![PyPI version](https://img.shields.io/pypi/v/multiagent-rl-rm.svg)](https://pypi.org/project/multiagent-rl-rm/)
 [![CI]( https://github.com/alee08/multiagent-rl-rm/actions/workflows/ci.yml/badge.svg)](https://github.com/alee08/multiagent-rl-rm/actions/workflows/ci.yml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17951631.svg)](https://doi.org/10.5281/zenodo.17951631)
+
 
 ## Introduction
 
@@ -349,6 +351,27 @@ All algorithms live in `multiagent_rlrm/learning_algorithms` and expose a common
 | `UCBVI-B`   | Model-based, UCBVI (Bernstein) | UCBVI variant using full Bernstein-style bonuses, yielding tighter confidence bounds and typically stronger theoretical guarantees.                                                                                                                                                                                                            |
 | `UCBVI-H`   | Model-based, UCBVI (Hoeffding) | UCBVI variant with Hoeffding-style bonuses, using simpler but more conservative confidence intervals.                                                                                                                                                                                                                                          |
 
+## Citation
+
+If you use this project in academic work, please cite it.
+
+- **Concept DOI (always points to the latest version):** https://doi.org/10.5281/zenodo.17951631
+- **Version DOI (v0.2.0):** https://doi.org/10.5281/zenodo.17951632
+
+This repository ships a `CITATION.cff` file, so GitHub can generate citations automatically via the **“Cite this repository”** button.
+
+```bibtex
+@software{alessandro_trapasso_2025_17951632,
+  author       = {Alessandro Trapasso},
+  title        = {multiagent-rl-rm: Multi-Agent Reinforcement Learning with Reward Machines},
+  month        = dec,
+  year         = 2025,
+  publisher    = {Zenodo},
+  version      = {v0.2.0},
+  doi          = {10.5281/zenodo.17951632},
+  url          = {https://doi.org/10.5281/zenodo.17951632},
+}
+```
 ## License
 
 Multi-Agent RLRM is released under the **Apache 2.0 License**.  
