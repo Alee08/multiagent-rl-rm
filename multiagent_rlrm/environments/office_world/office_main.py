@@ -214,6 +214,58 @@ def parse_arguments(default_map, default_experiment, default_algorithm):
         help="Execute the loaded policy for a given number of episodes (default is 100 if no number is provided).",
     )
 
+    # Optional: load a generated RM spec (from `multiagent_rlrm.cli.rmgen`) instead of the built-in transitions.
+    parser.add_argument(
+        "--rm-spec",
+        dest="rm_spec",
+        type=str,
+        default=None,
+        help="Path to an RM spec file (.json/.yaml). If set, overrides the built-in experiment RM.",
+    )
+    parser.add_argument(
+        "--complete-missing-transitions",
+        action="store_true",
+        help="Auto-complete missing RM transitions with self-loops and default reward (only with --rm-spec).",
+    )
+    parser.add_argument(
+        "--default-reward",
+        type=float,
+        default=0.0,
+        help="Reward value for auto-completed transitions (only with --rm-spec).",
+    )
+    parser.add_argument(
+        "--terminal-self-loop",
+        dest="terminal_self_loop",
+        action="store_true",
+        default=True,
+        help="When completing transitions, add self-loops for terminal states (default).",
+    )
+    parser.add_argument(
+        "--no-terminal-self-loop",
+        dest="terminal_self_loop",
+        action="store_false",
+        help="When completing transitions, skip terminal-state auto-completion.",
+    )
+    parser.add_argument(
+        "--max-positive-reward-transitions",
+        type=int,
+        default=None,
+        help="If set, fail if transitions with reward>0 exceed this value (only with --rm-spec).",
+    )
+    parser.add_argument(
+        "--terminal-reward-must-be-zero",
+        dest="terminal_reward_must_be_zero",
+        action="store_true",
+        default=True,
+        help="Require terminal states to have only reward 0 outgoing transitions (default).",
+    )
+    parser.add_argument(
+        "--no-terminal-reward-must-be-zero",
+        dest="terminal_reward_must_be_zero",
+        action="store_false",
+        help="Allow non-zero rewards from terminal states.",
+    )
+
     parser.add_argument(
         "--render",
         action="store_true",  # This makes --render a boolean flag, default is False
@@ -251,7 +303,7 @@ def parse_arguments(default_map, default_experiment, default_algorithm):
         "--VIdelta",
         type=float,
         default=1e-2,
-        help="Delta threshold for VI. Default is 1e-3",
+        help="Delta threshold for VI. Default is 1e-2",
     )
 
     parser.add_argument(
@@ -385,8 +437,101 @@ def setup_environment(args):
     agent.set_initial_position(*agent_config["position"])
     agent.add_state_encoder(StateEncoderOfficeWorld(agent))
 
-    event_detector = PositionEventDetector(position_map)
-    agent.set_reward_machine(RewardMachine(transitions, event_detector))
+    event_detector_positions = set(position_map)
+
+    if args.rm_spec:
+        from multiagent_rlrm.rmgen.io import compile_reward_machine, load_rmspec
+        from multiagent_rlrm.rmgen.normalize import (
+            autofix_rmspec_states_for_officeworld,
+            autofix_terminal_reward_violations_for_officeworld,
+            enforce_env_id,
+            normalize_rmspec_events,
+        )
+        from multiagent_rlrm.rmgen.summary import format_rmspec_summary
+        from multiagent_rlrm.rmgen.validator import ValidationError
+        from multiagent_rlrm.environments.office_world.event_context import (
+            build_officeworld_context,
+        )
+
+        def build_officeworld_event_mapping():
+            mapping = {}
+            for label, pos in goals.items():
+                mapping[f"at({label})"] = pos
+                mapping[label] = pos
+
+            # Common aliases that LLMs might produce
+            if "O" in goals:
+                mapping["office"] = goals["O"]
+                mapping["at(office)"] = goals["O"]
+
+            coffee_positions = coordinates.get("coffee") or []
+            if coffee_positions:
+                mapping["coffee"] = list(coffee_positions)
+                mapping["at(coffee)"] = list(coffee_positions)
+
+            letter_positions = coordinates.get("letter") or []
+            if letter_positions:
+                mapping["letter"] = list(letter_positions)
+                mapping["email"] = list(letter_positions)
+                mapping["at(letter)"] = list(letter_positions)
+                mapping["at(email)"] = list(letter_positions)
+
+            return mapping
+
+        try:
+            spec = load_rmspec(args.rm_spec)
+            spec = enforce_env_id(spec, "officeworld", reason="--rm-spec is set")
+
+            # Normalize spec events against the selected OfficeWorld map context.
+            context = build_officeworld_context(args.map)
+            spec = normalize_rmspec_events(spec, context)
+            spec = autofix_rmspec_states_for_officeworld(spec)
+            if args.terminal_reward_must_be_zero:
+                spec = autofix_terminal_reward_violations_for_officeworld(spec)
+
+            event_mapping = build_officeworld_event_mapping()
+            for mapped in event_mapping.values():
+                if isinstance(mapped, (list, set, frozenset)):
+                    event_detector_positions.update(mapped)
+                else:
+                    event_detector_positions.add(mapped)
+
+            event_detector = PositionEventDetector(event_detector_positions)
+            rm_compiled = compile_reward_machine(
+                spec,
+                event_detector=event_detector,
+                event_mapping=event_mapping,
+                complete_missing_transitions=args.complete_missing_transitions,
+                default_reward=args.default_reward,
+                terminal_self_loop=args.terminal_self_loop,
+                max_positive_reward_transitions=args.max_positive_reward_transitions,
+                terminal_reward_must_be_zero=args.terminal_reward_must_be_zero,
+            )
+            agent.set_reward_machine(rm_compiled)
+            logging.info(
+                "Loaded RM spec from %s (name=%s, env_id=%s)",
+                args.rm_spec,
+                spec.name,
+                spec.env_id,
+            )
+            print(
+                "\n"
+                + format_rmspec_summary(
+                    spec,
+                    agent_names=[agent.name],
+                    source=str(args.rm_spec),
+                )
+                + "\n"
+            )
+        except FileNotFoundError as exc:
+            raise SystemExit(f"--rm-spec file not found: {exc}") from exc
+        except ValidationError as exc:
+            raise SystemExit(f"--rm-spec validation failed: {exc}") from exc
+        except ValueError as exc:
+            raise SystemExit(f"--rm-spec invalid: {exc}") from exc
+    else:
+        event_detector = PositionEventDetector(event_detector_positions)
+        agent.set_reward_machine(RewardMachine(transitions, event_detector))
 
     # Configure reward shaping if requested by the selected algorithm
     if args.algorithm == "QRM_RS":
@@ -461,6 +606,7 @@ def initialize_renderer(environment, coordinates, office_walls, goals):
         "coffee": coordinates["coffee"],
         "letter": coordinates["letter"],
         "office_walls": office_walls,
+        "show_rm_panel": True,
     }
     renderer = EnvironmentRenderer(
         grid_width=environment.grid_width,
@@ -1083,9 +1229,8 @@ def test_rl_policy_multi(
     Returns:
       - The test results as computed by `test_policy_opt_multi`.
     """
-    # q_table_agent = extract_q_tables(rm_env.agents)
-    # q_table = q_table_agent[f"q_table_{rm_env.agents[0].name}"]
-    policy_rl = extract_policy_from_qtable(agent)
+    # Build a per-agent greedy policy dict from learned Q-tables.
+    policy_rl = {ag.name: extract_policy_from_qtable(ag) for ag in rm_env.agents}
 
     results_rl = test_policy_opt_multi(
         rm_env,
@@ -1381,6 +1526,51 @@ def run_post_processing_multi(
     return results_ttest
 
 
+def _record_greedy_episode(
+    renderer,
+    rm_env,
+    seed,
+    episode_id,
+    wandb=None,
+    max_steps=1000,
+):
+    """
+    Record a greedy (best-action) rollout and save it as episode_{episode_id}.*
+
+    Uses a deepcopy of the environment to avoid affecting training (e.g., extra resets
+    may change exploration schedules in some env implementations).
+    """
+    rm_env_eval = copy.deepcopy(rm_env)
+    previous_agents = renderer.agents
+    renderer.frames = []
+
+    try:
+        renderer.agents = rm_env_eval.agents
+
+        states, _infos = rm_env_eval.reset(seed)
+        done = {a.name: False for a in rm_env_eval.agents}
+
+        renderer.render("greedy", states)
+
+        steps = 0
+        while not all(done.values()) and steps < max_steps:
+            actions = {}
+            for ag in rm_env_eval.agents:
+                current_state = rm_env_eval.env.get_state(ag)
+                actions[ag.name] = ag.select_action(current_state, best=True)
+
+            states, _rewards, done, truncations, _infos = rm_env_eval.step(actions)
+            renderer.render("greedy", states)
+
+            if all(truncations.values()):
+                break
+            steps += 1
+
+        renderer.save_episode(episode_id, wandb=wandb)
+    finally:
+        renderer.agents = previous_agents
+
+
 def run_experiment(args):
     """
     Runs the main experiment loop for multi-agent learning, including:
@@ -1481,15 +1671,13 @@ def run_experiment(args):
 
     while episode < NUM_EPISODES and total_step < max_step:
 
+        episode_id = episode
         states, infos = rm_env.reset(args.seed * 1000 + episode)
         states = copy.deepcopy(states)
         done = {a.name: False for a in rm_env.agents}
         rewards_agents = {a.name: 0 for a in rm_env.agents}
 
-        # Render initial state if rendering is enabled
-        record_episode = episode % 1000 == 0 and episode != 0
-        if args.render and record_episode:
-            renderer.render(episode, states)
+        record_episode = args.render and episode_id % 1000 == 0 and episode_id != 0
 
         got_pos_reward = False  # if received a positive reward
         cum_gamma = 1.0
@@ -1533,10 +1721,6 @@ def run_experiment(args):
             states = copy.deepcopy(new_states)
             cum_gamma *= args.gamma
 
-            # Render step if rendering is enabled
-            if args.render and record_episode:
-                renderer.render(episode, states)
-
             if all(terminated.values()) or all(truncated.values()) or not dorun:
                 break
 
@@ -1554,9 +1738,14 @@ def run_experiment(args):
                 f"{args.env_str};{args.map};{args.experiment};{args.seed:03d} {args.algorithm}({alg_params}) - Steps: {total_step} {math.log10(total_step):.3f} Time: {cet:.2f} min"
             )
 
-        if args.render and record_episode:
-            renderer.save_episode(episode, wandb=wandb if args.wandb else None)
-            renderer.save_episode(episode)
+        if record_episode:
+            _record_greedy_episode(
+                renderer,
+                rm_env,
+                seed=args.seed * 1000 + episode_id,
+                episode_id=episode_id,
+                wandb=wandb if args.wandb else None,
+            )
 
         update_successes(rm_env.env, rewards_agents, successi_per_agente, done)
 
@@ -1732,7 +1921,7 @@ if __name__ == "__main__":
     default_algorithm = config["maps"][DEFAULT_MAP]["agents"][0]["algorithm"]
 
     # Parse command line arguments with default values
-    args = parse_arguments(DEFAULT_MAP, DEFAULT_EXPERIMENT, DEFAULT_ALGORITHM)
+    args = parse_arguments(DEFAULT_MAP, DEFAULT_EXPERIMENT, default_algorithm)
 
     getenvstr(args)
 

@@ -1,0 +1,13 @@
+{
+  "name": "invalid_schema",
+  "env_id": "officeworld",
+  "version": "1.0",
+  "states": ["q0", "q1"],
+  "initial_state": "q0",
+  "terminal_states": ["q1"],
+  "event_vocabulary": ["at(A)"],
+  "transitions": [
+    {"from_state": "q0", "event": "at(B)", "to_state": "q1", "reward": 0.0}
+  ],
+  "notes": "event not in vocabulary should fail"
+}

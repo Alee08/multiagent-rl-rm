@@ -1,0 +1,14 @@
+{
+  "name": "warehouse_pickup_delivery",
+  "env_id": "pickup_delivery",
+  "version": "1.0",
+  "states": ["q0", "q_pick", "q_drop"],
+  "initial_state": "q0",
+  "terminal_states": ["q_drop"],
+  "event_vocabulary": ["pickup(P1)", "deliver(P1)"],
+  "transitions": [
+    {"from_state": "q0", "event": "pickup(P1)", "to_state": "q_pick", "reward": 0.2},
+    {"from_state": "q_pick", "event": "deliver(P1)", "to_state": "q_drop", "reward": 1.5}
+  ],
+  "notes": "Pick package P1 then deliver"
+}

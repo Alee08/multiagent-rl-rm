@@ -1,0 +1,14 @@
+{
+  "name": "frozenlake_linear",
+  "env_id": "frozenlake",
+  "version": "1.0",
+  "states": ["q0", "q1", "q2"],
+  "initial_state": "q0",
+  "terminal_states": ["q2"],
+  "event_vocabulary": ["at(A)", "at(B)"],
+  "transitions": [
+    {"from_state": "q0", "event": "at(A)", "to_state": "q1", "reward": 0.5},
+    {"from_state": "q1", "event": "at(B)", "to_state": "q2", "reward": 2.0}
+  ],
+  "notes": "Reach A then B on the lake"
+}

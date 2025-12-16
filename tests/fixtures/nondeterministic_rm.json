@@ -1,0 +1,14 @@
+{
+  "name": "nondet_example",
+  "env_id": "officeworld",
+  "version": "1.0",
+  "states": ["q0", "q1", "q2"],
+  "initial_state": "q0",
+  "terminal_states": ["q2"],
+  "event_vocabulary": ["at(A)", "at(B)"],
+  "transitions": [
+    {"from_state": "q0", "event": "at(A)", "to_state": "q1", "reward": 0.0},
+    {"from_state": "q0", "event": "at(A)", "to_state": "q2", "reward": 1.0}
+  ],
+  "notes": "intentionally non-deterministic"
+}

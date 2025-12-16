@@ -1,131 +1,227 @@
-# Experiments - Office World
+# OfficeWorld + Reward Machines
 
-This project explores multi-agent reinforcement learning using various algorithms in a simulated office environment. The agents interact with the environment based on a set of predefined maps and experiments, aiming to accomplish tasks defined by reward machines.
+This folder contains the **MultiAgentOfficeWorld** grid-world environment and the main experiment runner `office_main.py`. Tasks are represented as **Reward Machines (RMs)**: finite-state automata whose transitions are triggered by environment events (here: reaching specific grid positions).
 
-## Prerequisites
+## Key files
 
-Before running the experiments, ensure you have the following installed:
+- `ma_office.py`: environment dynamics (movement, walls, stochasticity, penalties).
+- `office_main.py`: experiment entrypoint (training loop, evaluation, optional VI baseline/plots).
+- `config_office.py`: maps, built-in experiments (RM transition maps) and global settings.
+- `state_encoder_office.py`: encodes `(x, y, q_rm)` into a single integer state id for tabular algorithms.
+- `action_encoder_office_world.py`: registers symbolic actions `up|down|left|right`.
+- `detect_event.py`: `PositionEventDetector` (event = current position if in a watched set).
+- `event_context.py`: builds the OfficeWorld context used by `rmgen` for allowed/normalized events.
 
-- Python 3.8 or later
-- Required Python packages listed in `requirements.txt`
+## Rendered episodes (GIFs)
 
-Install the required packages using pip:
+Easy task (map1, `exp2`):
 
-```bash
-pip install -r requirements.txt
+<p align="center">
+  <img src="../../render/img/episode_office_exp2_map1.gif"
+       alt="OfficeWorld episode (map1, exp2)"
+       width="800">
+</p>
+Harder task (larger map3, `exp5`):
+
+<p align="center">
+  <img src="../../render/img/episode_office_exp5_map3.gif"
+       alt="OfficeWorld episode (map3, exp5)"
+       width="800">
+</p>
+## Map format & parsers (`parse_office_world`)
+
+OfficeWorld maps are defined as emoji layouts in `config_office.py`. The parser `multiagent_rlrm.utils.utils.parse_office_world(layout)` converts the layout into:
+
+- `coordinates`: object locations
+  - `🪴` → `plant`
+  - `🥤` → `coffee`
+  - `✉️` → `letter` (the RM also accepts the alias `email`)
+  - `🟩` → `empty_cell`
+- `goals`: dictionary `{label -> (x, y)}` for letters/digits (`A`, `B`, ..., `O`, `1`, ...)
+- `walls`: blocked adjacencies between neighboring cells, represented as segments `((x1, y1), (x2, y2))`
+
+### Cells vs separators (`⛔`, `🚪`) and wall extraction
+
+In the raw layout string, `⛔` and `🚪` are used as *separators* (they are not traversable cells). Internally:
+
+1. `parse_office_world` removes `⛔` and `🚪` to obtain a compact grid of actual cells and assigns `(x, y)` coordinates on that compact grid.
+2. `find_disconnected_pairs(layout)` scans the original layout to detect where two cells are separated by a `⛔` marker and returns the corresponding blocked edges.
+3. `office_main.py` duplicates these edges in both directions so wall checks can be done with directed pairs.
+
+### Coordinate system and actions
+
+- Coordinates are `(x, y)` on the compact grid returned by the parser; `(0, 0)` is the first (top-left) cell row/column of that grid.
+- In `ma_office.py`, action application follows:
+  - `up`: `y += 1`
+  - `down`: `y -= 1`
+  - `left/right`: `x -= 1` / `x += 1`
+
+## Built-in experiments (built-in RMs)
+
+`config_office.py:get_experiment_for_map(...)` defines each experiment as a transition map `{(rm_state, position): (next_rm_state, reward)}` plus the set of relevant positions.
+
+Common experiment ids (see `AVAILABLE_EXPERIMENTS` in `office_main.py`):
+
+- `exp0_simply`: Letter
+- `exp0`: Letter → Coffee → Office
+- `exp1`: Coffee → Office
+- `exp2`: Letter/Email → Office
+- `exp3`: Coffee + Letter/Email → Office
+- `exp4`: A → B → C → D
+- `exp5`: A → B → C → D, then Coffee + Letter/Email → Office
+- `exp6`: A → B → C → D → E, then Coffee + Letter/Email → Office
+- `exp7`: Coffee → Office variant (different reward magnitudes)
+
+## Authoring an RM (Python vs natural language)
+
+You can define an RM in two “human-friendly” ways:
+
+- **Python**: write a transition dictionary in code (either directly in your script or via the built-in experiment definitions in `config_office.py`).
+- **Natural language**: describe the task and use `rmgen` to generate a JSON/YAML RM spec, then load it with `--rm-spec`.
+
+Both workflows ultimately attach a `RewardMachine` to the agent.
+
+### Writing an RM in Python (hard-coded)
+
+Minimal pattern (similar to what built-in experiments do):
+
+```python
+from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
+from multiagent_rlrm.environments.office_world.detect_event import PositionEventDetector
+
+transitions = {
+    ("state0", goals["A"]): ("state1", 0),
+    ("state1", goals["B"]): ("state2", 1),
+}
+rm = RewardMachine(transitions, PositionEventDetector({goals["A"], goals["B"]}))
+agent.set_reward_machine(rm)
 ```
 
-## Available Configurations
-Maps
-The following maps are available for the experiments:
+## Loading an RM spec from file (`--rm-spec`)
 
-- `map1`: A small grid with basic obstacles and goals.
-- `map2`: A medium-sized grid with additional complexity.
-- `map3`: A large and complex grid with more goals and obstacles.
+`office_main.py` can ignore the built-in experiment RM and load a JSON/YAML RM spec:
 
-Stochastic effects can be enabled with ``--stochastic`` argument
+- `--rm-spec PATH`
 
-## Experiments
-Each map can be used with different experiments to test various scenarios:
+When a spec is provided:
 
-- `exp1`: Coffee to Office
-- `exp2`: E-mail to Office
-- `exp3`: Coffee + Email to Office
-- `exp4`: A-B-C-D (Patrol) 
-- `exp5`: A-B-C-D (Patrol), then Coffee + Email to Office
-- `exp6`: A-B-C-D-E (Patrol), then Coffee + Email to Office
+- `env_id` must be `officeworld`
+- events are normalized/validated against the selected map context (`event_context.py`)
+- optional completion: `--complete-missing-transitions --default-reward 0.0`
+- safety flags: `--terminal-self-loop/--no-terminal-self-loop`, `--terminal-reward-must-be-zero/--no-terminal-reward-must-be-zero`, `--max-positive-reward-transitions`
 
-## Algorithms
-The following algorithms can be used in the experiments:
+Event tokens typically used in specs:
 
-- `QRMAX`: QR-MAX is a model-based RL algorithm that enhances sample efficiency in NMRDPs by decoupling environment dynamics from reward structures.
-- `QRM`: Q-Learning with Reward Machines.
-- `QL`: Q-Learning (Cross-Product).
-- `RMAX`: A model-based algorithm with optimistic initialization.
+- goal symbols: `A` or `at(A)` (canonical form is `at(<LABEL>)`)
+- `office` / `at(office)` (mapped to `O` if present)
+- `coffee`, `letter` / `email` (expanded to all coffee/letter positions in the map)
 
+## Generating an RM from natural language (rmgen)
 
-## Running Experiments
-You can run experiments by executing the office_main.py script. You can specify the map, experiment, and algorithm using command-line arguments. If not specified, the script uses default values from the configuration.
-
-## Usage
-```bash
-python office_main.py [--map MAP] [--experiment EXPERIMENT] [--algorithm ALGORITHM] [--stochastic] 
-                      [--runs RUNS] [--seed SEED] [--save SAVE_PATH] [--load LOAD_PATH] 
-                      [--play [EPISODES]] [--render]
-```
-
-## Examples
-- Run with defaults:
-This will use the default map, experiment, and algorithm specified in the `config_office.py`.
+You can generate a valid RM spec directly from a natural-language description using the `rmgen` CLI. Example (OfficeWorld, map1):
 
 ```bash
-python office_main.py
+python -m multiagent_rlrm.cli.rmgen \
+  --provider openai_compat --base-url http://localhost:11434/v1 --model llama3.1:8b \
+  --context officeworld --map map1 \
+  --task "A -> C -> B -> D (in order), reward 1 on D" \
+  --output /tmp/rm_office.json
 ```
-- Run a specific configuration:
-This runs the experiment on `map1` with `exp1` using the `QL` algorithm.
+
+Then train with it:
 
 ```bash
-python office_main.py --map map1 --experiment exp1 --algorithm QL
+python multiagent_rlrm/environments/office_world/office_main.py \
+  --map map1 --experiment exp4 --algorithm QL \
+  --rm-spec /tmp/rm_office.json
 ```
 
-- Run another configuration:
-This runs `map2` with `exp2` with stochastic action effects using the `QL` algorithm.
+Note: `rmgen` needs an LLM backend (any OpenAI-compatible endpoint or similar). If you don't have one, write the JSON/YAML spec by hand and pass it via `--rm-spec`.
+
+## Running
+
+From the repository root:
 
 ```bash
-python office_main.py --stochastic --map map2 --experiment exp3 --algorithm QL 
+python multiagent_rlrm/environments/office_world/office_main.py \
+  --map map1 --experiment exp4 --algorithm QL
 ```
 
-- Run another configuration:
-This runs `map2` with `exp3` using the `QL` algorithm.
-
-- Run with custom seed and save the policy:
-This runs the experiment on map1 with exp1 using the `QRMAX` algorithm and saves the policy to a file.
+Stochastic dynamics:
 
 ```bash
-python office_main.py --map map1 --experiment exp1 --algorithm QRMAX --runs 0 --seed 3582 --save QRMAX_exp1_policy_3582.pkl
+python multiagent_rlrm/environments/office_world/office_main.py \
+  --stochastic --highprob 0.8 --map map1 --experiment exp1 --algorithm QL
 ```
-- Load a saved policy and execute it:
-This loads a pre-trained policy from `QRMAX_exp1_policy_3582.pkl` and executes it for 10 episodes.
+
+## CLI arguments
+
+For the authoritative list, run:
 
 ```bash
-python office_main.py --map map1 --experiment exp1 --algorithm QRMAX --runs 0 --seed 3582 --load policy_1.pkl --play 10
+python multiagent_rlrm/environments/office_world/office_main.py --help
 ```
 
-## Parameters
-- `--stochastic`: Enables stochastic action effects (default: `False`)
-- `--map`: Specifies which map to use. Options: `map1`, `map2`, `map3`.
-- `--experiment`: Specifies which experiment to run. Options: `exp1`, `exp2`, `exp3`, `exp4`, `exp5`, `exp6`.
-- `--algorithm`: Specifies which learning algorithm to use. Options: `QRMAX`, `QRM`, `QL`, `RMAX`.
-- `--runs`: Specifies which run(s) to execute. Accepts an integer, list, or range.
-- `--seed`: Specifies a custom seed for reproducibility.
-- `--save`: Path to save the trained policy.
-- `--load`: Path to load a pre-trained policy.
-- `--play`: Execute the loaded policy for a specified number of episodes (default is 100).
-- `--render`: Enables rendering of the environment.
+Condensed reference (defaults shown are the current code defaults; some values are adjusted at runtime):
 
-## Code Structure
-- `config.py`: Defines maps, experiments, and agent actions.
-- `office_main.py:` Main script to run experiments.
-- `ma_office.py`: Office World Environment
-- `StateEncoderOfficeWorld`**: Encodes the agent's state, combining its position with the Reward Machine state for use in RL algorithms.
-- `PositionEventDetector`**: Detects events based on the agent's current position relative to predefined relevant positions in the environment.
+### Experiment selection / control
 
-## Results
-Results are logged using Weights & Biases (wandb) during training. Metrics such as success rates, rewards, and other performance indicators are tracked per episode, with a focus on evaluating the optimal policy.
-If the `--save` option is used, the trained policy is saved to the specified path.
-This allows for the policy to be reloaded and tested or executed later using the `--load` and `--play` options.
+| Flag | Default | Description |
+|---|---:|---|
+| `--map` | `map1` | Which map to use (`config_office.py`). |
+| `--experiment` | `exp1` | Which built-in experiment/task to run. |
+| `--algorithm` | (from config) | Algorithm to use (default is the first agent algorithm in `config_office.py` for the selected map). |
+| `--seed` | `100` | Seed for environment resets / reproducibility. |
+| `--steps` | (config) | Max training steps; if omitted, uses `config["global_settings"]["max_step"]`. |
+| `--eval` | `1000` | Evaluation interval in training steps. |
+| `--early_stop` | `False` | Enable early-stopping logic (if supported by the experiment loop). |
+| `--save` | (none) | Path to save the final trained model/policy. |
+| `--load` | (none) | Path to load a pre-trained model/policy. |
+| `--play` | (none / `100`) | Execute a loaded policy for N evaluation episodes (if provided without a number, defaults to `100`). |
+| `--sweep_id` | (none) | Optional sweep id (W&B sweeps). |
 
-- Success Rate per Agent:
-    The percentage of episodes where each agent successfully completed its task.
+### Environment dynamics
 
-- Average Reward per Agent:
-    The mean reward obtained by each agent across all test episodes.
+| Flag | Default | Description |
+|---|---:|---|
+| `--stochastic` | `False` | Enable stochastic action outcomes. |
+| `--highprob` | `0.8` | Probability of the intended action outcome (only meaningful with `--stochastic`). |
+| `--all-slip` | `False` | If set, slipping can happen in all directions (only with `--stochastic`). |
 
-- Average Rewards per Step (ARPS) per Agent:
-    The average reward per timestep for each agent, offering insight into learning efficiency.
+Note: when `--stochastic` is **not** set, `office_main.py` forces `Kthreshold=1` and `learning_rate=1.0` regardless of CLI values.
 
-- Average Timesteps:
-    The average number of steps required to complete a task across all episodes.
+### Reward Machine spec (optional)
 
+| Flag | Default | Description |
+|---|---:|---|
+| `--rm-spec` | (none) | Path to an RM spec file (`.json/.yaml`) overriding the built-in experiment RM. |
+| `--complete-missing-transitions` | `False` | Auto-complete missing spec transitions (self-loops). |
+| `--default-reward` | `0.0` | Reward used for auto-completed transitions. |
+| `--terminal-self-loop` / `--no-terminal-self-loop` | `True` | When completing transitions, include/exclude terminal self-loops. |
+| `--terminal-reward-must-be-zero` / `--no-terminal-reward-must-be-zero` | `True` | Enforce/relax the “terminal outgoing reward must be 0” constraint. |
+| `--max-positive-reward-transitions` | (none) | Optional safety check on number of positive-reward transitions. |
 
+### Algorithm / VI parameters
 
+| Flag | Default | Description |
+|---|---:|---|
+| `--gamma` | `0.9` | Discount factor used by learning algorithms and evaluation. |
+| `--Kthreshold` | `39` | Known-threshold for RMAX/QRMAX in stochastic envs (forced to `1` if deterministic). |
+| `--learning_rate` | `0.1` | Learning rate for Q-learning/QRM in stochastic envs (forced to `1.0` if deterministic). |
+| `--VIdelta` | `1e-2` | Value-iteration convergence threshold. |
+| `--VIdeltarel` | `True` | Use relative VI delta threshold. |
+| `--vi_cache` | `False` | Use cached VI results if available. |
+
+### Rendering / logging
+
+| Flag | Default | Description |
+|---|---:|---|
+| `--render` | `False` | Enable rendering (pygame). |
+| `--generate_heatmap` | `False` | Save heatmaps after training. |
+| `--wandb` | `False` | Enable Weights & Biases logging. |
+
+## Outputs
+
+- `multiagent_rlrm/environments/office_world/results/`: CSV logs created by `office_main.py`.
+- `heatmaps/`: saved heatmaps (relative to the working directory).
+- `vi_cache/`: VI cache (relative to the working directory).

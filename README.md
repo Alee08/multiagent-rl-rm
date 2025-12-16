@@ -38,12 +38,150 @@ docker run --rm -it multiagent-rlrm python
 
 More details (compose, examples, troubleshooting) are available in `docker/README.md`.
 
+## Quickstart
 
-## Usage 
+Train the multi-agent FrozenLake example (built-in RM: `A -> B -> C`):
+```bash
+pip install -e .
+python -m multiagent_rlrm.environments.frozen_lake.frozen_lake_main \
+  --map map1 --num-episodes 2000 --render-every 0
+```
+
+## Reward Machine generation (`rmgen`)
+
+`rmgen` turns text (NL or a compact RM description) into a validated RM spec (`.json`/`.yaml`).
+You can then load the spec from experiment scripts via `--rm-spec` (e.g., OfficeWorld and FrozenLake entrypoints).
+
+<details>
+<summary>Offline RM generation (mock provider)</summary>
+
+Generate and validate a Reward Machine offline using the mock provider and fixtures:
+```bash
+pip install -e .
+python -m multiagent_rlrm.cli.rmgen --provider mock \
+  --mock-fixture tests/fixtures/officeworld_simple.json \
+  --task "go to A then G" \
+  --output /tmp/rm.json
+```
+If you point `--mock-fixture` to a non-deterministic spec (e.g., `tests/fixtures/nondeterministic_rm.json`), the command exits with code 1 and prints a validation error.
+
+</details>
+
+<details>
+<summary>LLM local via Ollama (OpenAI-compatible)</summary>
+
+1) Install and start Ollama (see https://ollama.com/docs/installation), then run the server:
+```bash
+ollama serve  # or ensure the Ollama service is running
+```
+2) Pull a model that exposes the OpenAI-compatible endpoint, e.g.:
+```bash
+ollama pull llama3.1:8b
+```
+3) Generate a Reward Machine via the OpenAI-compatible provider:
+```bash
+python -m multiagent_rlrm.cli.rmgen --provider openai_compat \
+  --base-url http://localhost:11434/v1 \
+  --model llama3.1:8b \
+  --task "go to A, then B, then goal" \
+  --output /tmp/rm.yaml
+```
+You can also provide a short prompt with only key transitions and ask the tool to complete the cartesian product with self-loops:
+```bash
+python -m multiagent_rlrm.cli.rmgen --provider openai_compat \
+  --base-url http://localhost:11434/v1 \
+  --model llama3.1:8b \
+  --task "q0 at(A)->q1, q1 at(G)->q2 reward 1, default self-loop" \
+  --complete-missing-transitions --default-reward 0.0 \
+  --output /tmp/rm.yaml
+```
+
+</details>
+
+<details>
+<summary>NL→RM→Train (OfficeWorld / FrozenLake)</summary>
+
+Generate an RM spec with Ollama and use it directly in an experiment script via `--rm-spec`.
+
+When using a map-derived context (e.g., `--context officeworld` / `--context frozenlake`), `rmgen` also applies safe defaults to make the short command reliable:
+- `temperature=0` (unless explicitly overridden)
+- `--complete-missing-transitions` enabled
+- `--max-positive-reward-transitions 1`
+`env_id` is enforced to the selected context (`officeworld`/`frozenlake`) even if the model outputs a typo.
+
+### OfficeWorld
+1) Generate `/tmp/rm.yaml` (JSON or YAML; `.yaml` works even if the content is JSON):
+```bash
+python -m multiagent_rlrm.cli.rmgen --provider openai_compat \
+  --base-url http://localhost:11434/v1 \
+  --model llama3.1:8b \
+  --context officeworld --map map1 \
+  --task "A -> C -> B -> D, reward on D" \
+  --output /tmp/rm.yaml
+```
+This command auto-injects the **allowed events** derived from the selected OfficeWorld map into the LLM prompt and then normalizes events (e.g., `A` → `at(A)`, `at(office)` → `at(O)`) before validation.
+If the model mistakenly puts a non-zero reward on an outgoing transition from a terminal state, OfficeWorld context auto-repairs the spec (by redirecting into a new terminal sink state) when `terminal_reward_must_be_zero` is enabled.
+
+To disable these safe defaults (legacy behavior), add `--no-safe-defaults`:
+```bash
+python -m multiagent_rlrm.cli.rmgen --provider openai_compat \
+  --base-url http://localhost:11434/v1 \
+  --model llama3.1:8b \
+  --context officeworld --map map1 --no-safe-defaults \
+  --task "A -> C -> B -> D, reward on D" \
+  --output /tmp/rm.yaml
+```
+
+You can also provide a more explicit textual RM:
+```bash
+python -m multiagent_rlrm.cli.rmgen --provider openai_compat \
+  --base-url http://localhost:11434/v1 \
+  --model llama3.1:8b \
+  --task "OfficeWorld: q0 at(A)->q1, q1 at(B)->q2, q2 at(C)->q3, q3 at(D)->q4 reward 1, default self-loop" \
+  --complete-missing-transitions --default-reward 0.0 \
+  --output /tmp/rm.yaml
+```
+
+2) Train using the generated spec (OfficeWorld entrypoint):
+```bash
+python multiagent_rlrm/environments/office_world/office_main.py \
+  --map map1 --experiment exp4 --algorithm QL \
+  --rm-spec /tmp/rm.yaml
+```
+
+### FrozenLake
+FrozenLake context injects the allowed goal events derived from the selected emoji map (holes are excluded from the event vocabulary) and normalizes bare symbols (e.g., `A` → `at(A)`):
+```bash
+python -m multiagent_rlrm.cli.rmgen --provider openai_compat \
+  --base-url http://localhost:11434/v1 \
+  --model llama3.1:8b \
+  --context frozenlake --map map1 \
+  --task "B -> A -> C (exact order), reward 1 on C" \
+  --output /tmp/rm_frozenlake.json
+```
+
+Train with the generated spec (FrozenLake entrypoint):
+```bash
+python -m multiagent_rlrm.environments.frozen_lake.frozen_lake_main \
+  --map map1 --rm-spec /tmp/rm_frozenlake.json
+```
+
+You can also use different RMs per agent:
+```bash
+python -m multiagent_rlrm.environments.frozen_lake.frozen_lake_main \
+  --map map1 --rm-spec-a1 /tmp/a1.json --rm-spec-a2 /tmp/a2.json
+```
+
+</details>
+
+## Usage (Python API)
 This repository includes several environments (Frozen Lake, Office World, Pickup & Delivery, etc.). Below is a compact end-to-end example for two agents in the Frozen Lake environment, each with its own Reward Machine (RM) and tabular Q-learning.
 
+<details open>
+<summary>End-to-end FrozenLake example (two agents)</summary>
+
 ### Step 1: Environment Setup
-First, import the necessary modules and initialize the `MultiAgentFrozenLake` environment. You can derive width/height, holes and goals from an emoji layout via `parse_map_emoji` (as in `frozen_lake_main.py`).
+First, import the necessary modules and initialize the `MultiAgentFrozenLake` environment. You can derive width/height, holes and goals from an emoji layout via `parse_map_emoji` (as in `multiagent_rlrm/environments/frozen_lake/frozen_lake_main.py`).
 ```python
 from multiagent_rlrm.environments.frozen_lake.ma_frozen_lake import MultiAgentFrozenLake
 from multiagent_rlrm.environments.frozen_lake.action_encoder_frozen_lake import ActionEncoderFrozenLake
@@ -77,7 +215,7 @@ Create agent instances, set their initial positions, and attach domain-specific 
 for state and actions. In Frozen Lake, the `StateEncoderFrozenLake` maps grid positions
 (and RM state) to tabular indices, while `ActionEncoderFrozenLake` registers the
 discrete actions (`up`, `down`, `left`, `right`) for each agent. Finally, register the
-agents with the environment so `reset`/`step` include them. Coordinates below match `frozen_lake_main.py`.
+agents with the environment so `reset`/`step` include them. Coordinates below match `multiagent_rlrm/environments/frozen_lake/frozen_lake_main.py`.
 ```python
 from multiagent_rlrm.multi_agent.agent_rl import AgentRL
 from multiagent_rlrm.multi_agent.action_rl import ActionRL
@@ -98,7 +236,7 @@ env.add_agent(a2)
 
 
 ### Step 3: Define Reward Machines (one per agent)
-You define the task as a small automaton (the Reward Machine). The `PositionEventDetector` turns grid visits into events; here we mirror `frozen_lake_main.py`: reach A then B then C. Each agent gets its own RM (rm1, rm2), so progress and rewards are tracked independently even in the same environment.
+You define the task as a small automaton (the Reward Machine). The `PositionEventDetector` turns grid visits into events; here we mirror `multiagent_rlrm/environments/frozen_lake/frozen_lake_main.py`: reach A then B then C. Each agent gets its own RM (rm1, rm2), so progress and rewards are tracked independently even in the same environment.
 
 ```python
 from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
@@ -181,9 +319,15 @@ In this loop, agents continuously assess their environment, make decisions, and 
 
 ### Frozen Lake layout & sample episode
 
-Greedy run saved at episode 1000 (deterministic dynamics, `frozen_lake_stochastic=False`). Run `multiagent_rlrm/environments/frozen_lake/frozen_lake_main.py` with `RENDER_EVERY=100` to generate the files; they are saved next to the script under `episodes/episode_1000.*`. Rendering uses pygame with a side panel showing RM state, events, and per-agent steps.
+Sample run saved at episode 1000 (deterministic dynamics, `frozen_lake_stochastic=False`). Run `python -m multiagent_rlrm.environments.frozen_lake.frozen_lake_main --render-every 100` to generate the files; they are saved under `./episodes/episode_1000.*` (relative to your working directory). Rendering uses pygame with a side panel showing RM state, events, and per-agent steps.
 
-![Frozen Lake Episode 1000](multiagent_rlrm/environments/frozen_lake/episodes/episode_1000.gif)
+
+<p align="center">
+  <img src="multiagent_rlrm/environments/frozen_lake/episodes/episode_1000.gif"
+       alt="Frozen Lake Episode 1000"
+       width="800">
+</p>
+</details>
 
 ## Implemented learning algorithms
 
