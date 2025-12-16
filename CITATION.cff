@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software in academic work, please cite it using this metadata."
+type: software
+title: "Multi-Agent RLRM"
+abstract: "A Python library for multi-agent reinforcement learning with Reward Machines, including tools to generate Reward Machine specifications from natural language (NL->RM) via LLM-backed pipelines."
+version: "0.2.0"
+date-released: "2025-12-16"
+license: "Apache-2.0"
+repository-code: "https://github.com/Alee08/multi-agent-rl-rm"
+url: "https://github.com/Alee08/multi-agent-rl-rm"
+authors:
+  - family-names: "Trapasso"
+    given-names: "Alessandro"
+    email: "Ale.trapasso8@gmail.com"
+    orcid: "https://orcid.org/0000-0001-5431-6607"
+keywords:
+  - reinforcement-learning
+  - multi-agent
+  - reward-machines
+  - non-markovian-reward
+  - natural-language
+  - llm
+  - nl-to-rm
+  - reward-machine-generation
