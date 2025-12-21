@@ -326,15 +326,20 @@ Office World: sample episode (map1, exp2).
 To regenerate the Frozen Lake render, run `python -m multiagent_rlrm.environments.frozen_lake.frozen_lake_main --render-every 100`; files are saved under `./episodes/episode_1000.*` (relative to your working directory). Rendering uses pygame with a side panel showing RM state, events, and per-agent steps.
 More details: [Frozen Lake README](multiagent_rlrm/environments/frozen_lake/README.md) and [Office World README](multiagent_rlrm/environments/office_world/README.md).
 
-
-<p align="center">
-  <img src="multiagent_rlrm/environments/frozen_lake/episodes/episode_1000.gif"
-       alt="Frozen Lake Episode 1000"
-       width="400">
-  <img src="multiagent_rlrm/render/img/episode_office_2_agents.gif"
-       alt="Office World Episode (map1, exp2)"
-       width="515">
-</p>
+<table>
+  <tr>
+    <td width="44%" align="center">
+      <img src="multiagent_rlrm/environments/frozen_lake/episodes/episode_1000.gif"
+           alt="Frozen Lake Episode 1000"
+           width="100%">
+    </td>
+    <td width="56%" align="center">
+      <img src="multiagent_rlrm/render/img/episode_office_2_agents.gif"
+           alt="Office World Episode (map1, exp2)"
+           width="100%">
+    </td>
+  </tr>
+</table>
 </details>
 
 ## Implemented learning algorithms
