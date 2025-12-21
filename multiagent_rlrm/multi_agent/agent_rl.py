@@ -1,6 +1,7 @@
 from unified_planning.model.multi_agent import Agent
 from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
 from typing import Optional
+import random
 from multiagent_rlrm.utils.message import Message
 from multiagent_rlrm.multi_agent.state_encoder import StateEncoder
 from multiagent_rlrm.multi_agent.action_encoder import ActionEncoder
@@ -102,6 +103,15 @@ class AgentRL(Agent):
                 f"Action index {action_index} not found in actions dictionary."
             )
         return action
+
+    def get_random_action(self):
+        """
+        Returns a uniformly random action from the agent's available action list.
+        """
+        actions = self.get_actions()
+        if not actions:
+            raise ValueError("No actions available for this agent.")
+        return random.choice(actions)
 
     def update_policy(self, state, action, reward, next_state, terminated, **kwargs):
         """

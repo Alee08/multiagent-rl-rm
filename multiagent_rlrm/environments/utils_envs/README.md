@@ -1,6 +1,6 @@
 # Reinforcement Learning with Value Iteration Benchmarking and Early Stopping
 
- The goal is to evaluate the performance of RL algorithms against optimal policies derived from VI, utilizing statistical methods to determine when training can be safely terminated early.
+The goal is to evaluate the performance of RL algorithms against optimal policies derived from VI, utilizing statistical methods to determine when training can be safely terminated early.
 
 ---
 
@@ -26,7 +26,7 @@ During the training process, at regular intervals or upon meeting specific condi
 
 For each policy, multiple **test episodes** (e.g., 100) are run to collect the final rewards achieved in each episode. A **t-test** is then performed to compare the distributions of rewards between the VI and RL policies. The resulting **p-value** indicates whether there is a statistically significant difference between the two policies.
 
-- **p-value > 0.1**:  
+- **p-value > 0.1** (with `--early_stop` enabled in stochastic runs):  
   Indicates that there is **no significant evidence** to suggest that the RL policy performs worse than the VI policy. In this case, **early stopping** is triggered to halt further training, as the RL policy is considered sufficiently close to the optimal VI policy.
 
 - **p-value ≤ 0.1**:  
@@ -97,19 +97,39 @@ All visualizations can be viewed locally or integrated with **Weights & Biases (
 To execute a training session in a **stochastic environment** with early stopping enabled, use the following command:
 
 ```bash
-python3 office_main.py --map map1 --experiment exp1 --stoc --alg QRMAX --steps 1e7 --wandb --early_stop
+python multiagent_rlrm/environments/office_world/office_main.py \
+  --map map1 --experiment exp1 --stoc --alg QRMAX --steps 1e7 --wandb --early_stop
 ```
 
 ### Explanation of Arguments
 
 - `--map map1`: Selects the first map layout (`map1`) for the experiment.
 - `--experiment exp1`: Chooses the first experiment configuration (`exp1`), which defines specific scenarios and Reward Machines.
-- `--stoc`: Enables stochasticity in the environment, introducing probabilistic outcomes for actions.
-- `--alg QRMAX`: Specifies the use of the QRMAX RL algorithm.
+- `--stoc`: Enables stochasticity in the environment, introducing probabilistic outcomes for actions (shorthand for `--stochastic`).
+- `--alg QRMAX`: Specifies the use of the QRMAX RL algorithm (shorthand for `--algorithm`).
 - `--steps 1e7`: Sets the maximum number of training steps to 10 million.
 - `--wandb`: Activates logging to Weights & Biases, allowing for real-time monitoring of training metrics and visualizations.
-- `--early_stop`: Enables early stopping based on the p-value comparison between VI and RL policies. Training will halt automatically if the RL policy is not statistically worse than the VI policy (i.e., if p-value > 0.1).
+- `--early_stop`: Enables early stopping; in stochastic runs, a p-value > 0.1 can halt training when the RL policy is not statistically worse than the VI policy.
 
 #### What Happens with `--early_stop`
 
-During training, the algorithm periodically performs a t-test comparing the RL policy's performance against the VI policy. If the resulting p-value exceeds 0.1, it indicates that the RL policy is not significantly worse than the VI policy, triggering an early stop to terminate training prematurely. This prevents unnecessary computation once satisfactory performance is achieved.
+During training, the algorithm periodically performs a t-test comparing the RL policy's performance against the VI policy. If `--early_stop` is enabled and the run is stochastic, a p-value > 0.1 triggers an early stop to terminate training prematurely. Some algorithms can also signal termination via `update_policy(...)`, which is only honored when `--early_stop` is set.
+
+## Command-Line Arguments
+
+For the full list, run:
+
+```bash
+python multiagent_rlrm/environments/office_world/office_main.py --help
+```
+
+Argparse accepts unique prefixes, so `--stoc` and `--alg` are shorthand for `--stochastic` and `--algorithm`.
+
+Common flags:
+
+- `--map`, `--experiment`, `--algorithm`
+- `--stochastic`, `--highprob`, `--all-slip`
+- `--steps`, `--eval`, `--early_stop`
+- `--wandb`, `--render`, `--generate_heatmap`, `--vi_cache`
+- `--rm-spec`, `--complete-missing-transitions`, `--default-reward`, `--terminal-self-loop`, `--terminal-reward-must-be-zero`
+- `--gamma`, `--Kthreshold`, `--learning_rate`, `--VIdelta`, `--VIdeltarel`

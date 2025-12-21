@@ -1,6 +1,6 @@
 # Multi-Agent RLRM
 [![PyPI version](https://img.shields.io/pypi/v/multiagent-rl-rm.svg)](https://pypi.org/project/multiagent-rl-rm/)
-[![CI]( https://github.com/alee08/multiagent-rl-rm/actions/workflows/ci.yml/badge.svg)](https://github.com/alee08/multiagent-rl-rm/actions/workflows/ci.yml)
+[![CI](https://github.com/Alee08/multiagent-rl-rm/actions/workflows/ci.yml/badge.svg)](https://github.com/Alee08/multiagent-rl-rm/actions/workflows/ci.yml)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17951631.svg)](https://doi.org/10.5281/zenodo.17951631)
 
 
@@ -22,8 +22,8 @@ import path: multiagent_rlrm (underscore).
 To install the framework, follow these steps:
 
 ```bash
-git clone https://github.com/Alee08/multi-agent-rl-rm.git
-cd multi-agent-rl-rm
+git clone https://github.com/Alee08/multiagent-rl-rm.git
+cd multiagent-rl-rm
 pip install -r requirements.txt
 pip install -e .
 ```
