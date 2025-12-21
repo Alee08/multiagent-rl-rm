@@ -319,7 +319,7 @@ for ep in range(EPISODES):
 ```
 In this loop, agents continuously assess their environment, make decisions, and act accordingly. The env.step(actions) method encapsulates the agents' interactions with the environment, including executing actions, receiving new observations, calculating rewards, and updating the agents' policies based on the results. This streamlined process simplifies the learning loop and focuses on the essential elements of agent-environment interaction.
 
-### Frozen Lake layout & sample episode
+### Rendered episodes
 
 Frozen Lake: render from the implemented experiment (episode 1000, deterministic dynamics, `frozen_lake_stochastic=False`).
 Office World: sample episode (map1, exp2).
