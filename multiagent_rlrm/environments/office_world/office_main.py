@@ -72,6 +72,9 @@ AVAILABLE_ALGORITHMS = [
     "QL_RS",
     "QRM_RS",
     "UCBVI",
+    "UCBVI-sB",
+    "UCBVI-B",
+    "UCBVI-H",
     "OPSRL",
 ]  # also used to order algorithms to plot
 NUM_EPISODES = 1000000000  # 1e9
@@ -566,7 +569,16 @@ def setup_environment(args):
             state_size, seed, use_qrm=True, stochastic=stoc, use_rsh=True
         ),
         "UCBVI": lambda state_size, seed, stoc: create_ucbvi(
-            state_size, seed, stochastic=stoc
+            state_size, seed, stochastic=stoc, bonus_type="bernstein"
+        ),
+        "UCBVI-sB": lambda state_size, seed, stoc: create_ucbvi(
+            state_size, seed, stochastic=stoc, bonus_type="simplified_bernstein"
+        ),
+        "UCBVI-B": lambda state_size, seed, stoc: create_ucbvi(
+            state_size, seed, stochastic=stoc, bonus_type="bernstein"
+        ),
+        "UCBVI-H": lambda state_size, seed, stoc: create_ucbvi(
+            state_size, seed, stochastic=stoc, bonus_type="hoeffding"
         ),
         "OPSRL": lambda state_size, seed, stoc: create_opsrl(
             state_size, seed, stochastic=stoc
@@ -731,7 +743,16 @@ def create_qrmax(state_size, q_space_size, seed, stochastic=False, use_qrm=False
     )
 
 
-def create_ucbvi(state_size, seed, stochastic=False):
+def _finite_horizon_for_current_experiment(default=150):
+    return {
+        "map0;exp0": 50,
+        "map1;exp5": 150,
+        "map2;exp5": 350,
+        "map4;exp6": 150,
+    }.get(f"{args.map};{args.experiment}", default)
+
+
+def create_ucbvi(state_size, seed, stochastic=False, bonus_type="bernstein"):
     """
     Creates a UCBVI planner with fixed exploration and bonus settings.
 
@@ -743,9 +764,9 @@ def create_ucbvi(state_size, seed, stochastic=False):
     return UCBVI(
         state_space_size=state_size,
         action_space_size=4,
-        ep_len=150,  # oppure args.ep_len
+        ep_len=_finite_horizon_for_current_experiment(),
         # gamma=args.gamma,       # se vuoi rispettare il CLI
-        bonus_type="bernstein",  # simplified_bernstein, bernstein, hoeffding
+        bonus_type=bonus_type,  # simplified_bernstein, bernstein, hoeffding
         bonus_scaling=1,
         reward_free=False,
         stage_dependent=False,
@@ -768,9 +789,9 @@ def create_opsrl(state_size, seed, stochastic=False):
     return OPSRL(
         state_space_size=state_size,
         action_space_size=4,
-        ep_len=150,
+        ep_len=_finite_horizon_for_current_experiment(),
         gamma=1,
-        thompson_samples=1,
+        thompson_samples=8,
         bernoullized_reward=True,
         reward_free=False,
         prior_transition="uniform",  # uniform o 'optimistic'

@@ -458,6 +458,13 @@ def get_experiment_for_map(map_name, selected_experiment):
         },
     }
 
+    if map_name == "map4" and selected_experiment == "exp6":
+        paper_exp6 = dict(experiments["exp7"])
+        paper_exp6["description"] = (
+            "Coffee to Office with good/regular coffee (paper map4 exp6)"
+        )
+        return paper_exp6
+
     return experiments.get(selected_experiment)
 
 
