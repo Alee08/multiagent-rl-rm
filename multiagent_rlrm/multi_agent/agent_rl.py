@@ -2,6 +2,7 @@ from unified_planning.model.multi_agent import Agent
 from multiagent_rlrm.multi_agent.reward_machine import RewardMachine
 from typing import Optional
 import random
+from unified_planning.exceptions import UPValueError
 from multiagent_rlrm.utils.message import Message
 from multiagent_rlrm.multi_agent.state_encoder import StateEncoder
 from multiagent_rlrm.multi_agent.action_encoder import ActionEncoder

@@ -76,7 +76,7 @@ class StateEncoderFrozenLake(StateEncoder):
         }
 
         # 4) Retrieve the Reward Machine state name (string) from its index
-        rm_state_str = self.agent.get_reward_machine().get_state_name_from_idx(
+        rm_state_str = self.agent.get_reward_machine().get_state_from_index(
             rm_state_index
         )
 

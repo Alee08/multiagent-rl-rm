@@ -114,7 +114,7 @@ class MultiAgentOfficeWorld(BaseEnvironment):
 
         # observations = self.agent_states
         # Get dummy infos
-        infos = {agent: {} for agent in self.agents}
+        infos = {agent.name: {} for agent in self.agents}
         observations = {agent.name: agent.state for agent in self.agents}
 
         return observations, infos

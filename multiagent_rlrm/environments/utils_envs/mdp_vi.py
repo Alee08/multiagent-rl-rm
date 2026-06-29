@@ -1,4 +1,7 @@
-from config_office import config, get_experiment_for_map
+from multiagent_rlrm.environments.office_world.config_office import (
+    config,
+    get_experiment_for_map,
+)
 import numpy as np
 import copy
 

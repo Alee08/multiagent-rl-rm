@@ -29,3 +29,15 @@ def test_state_encoder_frozen_lake_encode():
     assert encoded == 9  # pos_index=2*4+1=9, single RM state
     assert info["s"] == 9
     assert info["q"] == 0
+
+
+def test_state_encoder_frozen_lake_decode_returns_rm_state_name():
+    transitions = {("q0", "a"): ("q1", 1)}
+    rm = RewardMachine(transitions, DummyEventDetector())
+    agent = DummyAgent(width=4, height=5, rm=rm)
+    encoder = StateEncoderFrozenLake(agent)
+
+    decoded_state, info = encoder.decode(19)  # pos_index=9, rm_state_index=1
+
+    assert decoded_state == {"pos_x": 1, "pos_y": 2}
+    assert info == {"q": "q1"}

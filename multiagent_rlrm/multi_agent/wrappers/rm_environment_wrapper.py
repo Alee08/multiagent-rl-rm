@@ -193,9 +193,14 @@ class RMEnvironmentWrapper:
             all_num_states: dict(agent_name → number of encoded states)
             all_num_actions: dict(agent_name → number of actions)
         """
-        self.env.stochastic = False
-        width = self.env.map_width
-        height = self.env.map_height
+        if hasattr(self.env, "stochastic"):
+            self.env.stochastic = False
+        width = getattr(self.env, "map_width", None)
+        height = getattr(self.env, "map_height", None)
+        if width is None:
+            width = self.env.grid_width
+        if height is None:
+            height = self.env.grid_height
         agents = self.env.agents
 
         all_P = {}

@@ -39,3 +39,12 @@ def test_reward_machine_transitions_and_reset():
 
     rm.reset_to_initial_state()
     assert rm.get_current_state() == "q0"
+
+
+def test_reward_machine_non_current_state_accepts_list_event():
+    transitions = {("q0", ("a", "b")): ("q1", 1)}
+    rm = RewardMachine(transitions, StubEventDetector([]))
+
+    next_state, reward = rm.get_reward_for_non_current_state("q0", ["a", "b"])
+
+    assert (next_state, reward) == ("q1", 1)

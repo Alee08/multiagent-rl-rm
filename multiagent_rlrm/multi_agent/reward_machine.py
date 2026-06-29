@@ -84,8 +84,6 @@ class RewardMachine:
         """
         # Convert event to a hashable type if needed
         if isinstance(event, list):
-            print("It's a list!")
-            breakpoint()
             event = tuple(event)
 
         if (state_rm, event) in self.transitions:

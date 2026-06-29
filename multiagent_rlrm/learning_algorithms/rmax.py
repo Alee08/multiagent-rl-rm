@@ -185,7 +185,7 @@ class RMax(BaseLearningAlgorithm):
         """
         Do some iterations of value iteration to compute the q values
         Only update the (s, a) pairs that have enough experiences seen
-        Q(s, a) = R(s, a) + gamma * \sum_s' T(s, a, s') * max_a' Q(s', a')
+        Q(s, a) = R(s, a) + gamma * sum_s' T(s, a, s') * max_a' Q(s', a')
         """
         # mask for update
         mask = self.s_a_counts >= self.s_a_threshold

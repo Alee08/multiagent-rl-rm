@@ -2,6 +2,7 @@ import numpy as np
 import random
 from multiagent_rlrm.learning_algorithms.qlearning_lambda import QLearningLambda
 from multiagent_rlrm.learning_algorithms.qlearning import QLearning
+from multiagent_rlrm.multi_agent.action_rl import ActionRL
 from multiagent_rlrm.multi_agent.base_environment import BaseEnvironment
 
 random.seed(a=123)
@@ -20,7 +21,10 @@ class MultiAgentFrozenLake(BaseEnvironment):
         :param holes: List of grid positions representing holes.
         """
         super().__init__(width, height)
+        self.map_width = width
+        self.map_height = height
         self.holes = holes  # Hole positions on the grid
+        self.wait_action = ActionRL("wait", [], [])
         self.possible_actions = ["up", "down", "left", "right"]
         self.rewards = 0
         self.frozen_lake_stochastic = False  # Whether actions are stochastic
@@ -59,10 +63,12 @@ class MultiAgentFrozenLake(BaseEnvironment):
         if self.random_start_positions:
             start_positions = self._sample_start_positions(rng)
         else:
-            # Use the explicitly configured initial positions when not randomizing
-            start_positions = [
-                getattr(ag, "initial_position", ag.position) for ag in self.agents
-            ]
+            start_positions = []
+            for ag in self.agents:
+                start_pos = getattr(ag, "initial_position", None)
+                if start_pos is None:
+                    start_pos = ag.position
+                start_positions.append(start_pos)
 
         for agent, start_pos in zip(self.agents, start_positions):
             agent.set_initial_position(*start_pos)
@@ -82,7 +88,7 @@ class MultiAgentFrozenLake(BaseEnvironment):
                 l_algo.learn_done_episode()
 
         # Dummy info dict for initialization
-        infos = {agent: {} for agent in self.agents}
+        infos = {agent.name: {} for agent in self.agents}
         observations = {agent.name: agent.state for agent in self.agents}
 
         return observations, infos
@@ -248,6 +254,32 @@ class MultiAgentFrozenLake(BaseEnvironment):
             80% intended action
             10% each perpendicular action
         """
+        actions, probabilities = self._stochastic_action_probability_mapping()[
+            intended_action
+        ]
+        rng = self.rng or np.random.default_rng()
+        chosen_action = rng.choice(actions, p=probabilities)
+        return chosen_action
+
+    def get_action_probability_mapping(self):
+        """
+        Return action outcomes and probabilities for the current dynamics mode.
+        """
+        if not self.frozen_lake_stochastic:
+            return {
+                "left": (["left"], [1.0]),
+                "right": (["right"], [1.0]),
+                "up": (["up"], [1.0]),
+                "down": (["down"], [1.0]),
+                "wait": (["wait"], [1.0]),
+            }
+
+        return self._stochastic_action_probability_mapping()
+
+    def _stochastic_action_probability_mapping(self):
+        """
+        Return stochastic action outcomes and probabilities.
+        """
         if self.delay_action:
             action_map = {
                 "left": (["wait", "left", "up", "down"], [0.6, 0.36, 0.02, 0.02]),
@@ -263,7 +295,56 @@ class MultiAgentFrozenLake(BaseEnvironment):
                 "down": (["down", "left", "right"], [0.8, 0.1, 0.1]),
             }
 
-        actions, probabilities = action_map[intended_action]
-        rng = self.rng or np.random.default_rng()
-        chosen_action = rng.choice(actions, p=probabilities)
-        return chosen_action
+        return action_map
+
+    def set_state(self, agent, state):
+        """
+        Set an agent and its Reward Machine to a specific product-state tuple.
+        """
+        x, y, q_rm = state
+        rm = agent.get_reward_machine()
+
+        agent.set_position(x, y)
+        rm.current_state = (
+            rm.get_state_from_index(q_rm) if isinstance(q_rm, int) else q_rm
+        )
+
+    def get_current_state(self, agent):
+        """
+        Return the current product state as (x, y, rm_state_index).
+        """
+        x, y = agent.get_position()
+        rm = agent.get_reward_machine()
+        q_rm = rm.get_state_index(rm.get_current_state())
+        return (x, y, q_rm)
+
+    def is_terminal_state_mdp(self, agent, pos_x, pos_y, rm_state):
+        """
+        Check terminal states for full-MDP construction.
+        """
+        if (pos_x, pos_y) in self.holes:
+            return True, self.penalty_amount
+
+        rm = agent.get_reward_machine()
+        rm_state_name = (
+            rm.get_state_from_index(rm_state) if isinstance(rm_state, int) else rm_state
+        )
+        if rm_state_name == rm.get_final_state():
+            return True, 0
+
+        return False, 0
+
+    def get_action_distribution(self, action):
+        """
+        Return sub-actions and probabilities for a nominal ActionRL.
+        """
+        action_map = self.get_action_probability_mapping()
+        subactions, probabilities = action_map[action.name]
+        agent = self.agents[0]
+        subaction_objects = []
+        for subaction_name in subactions:
+            if subaction_name == "wait":
+                subaction_objects.append(self.wait_action)
+            else:
+                subaction_objects.append(agent.action(subaction_name))
+        return subaction_objects, probabilities

@@ -31,7 +31,10 @@ from multiagent_rlrm.environments.frozen_lake.detect_event import (
 from multiagent_rlrm.multi_agent.wrappers.rm_environment_wrapper import (
     RMEnvironmentWrapper,
 )  # Import the reward-machine environment wrapper
-from config_office import config, get_experiment_for_map
+from multiagent_rlrm.environments.office_world.config_office import (
+    config,
+    get_experiment_for_map,
+)
 from multiagent_rlrm.utils.utils import *
 import logging
 import argparse
