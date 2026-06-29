@@ -33,7 +33,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Alessandro Trapasso",
     author_email="Ale.trapasso8@gmail.com",
-    url="https://github.com/Alee08/multi-agent-rl-rm",
+    url="https://github.com/Alee08/multiagent-rl-rm",
     packages=find_packages(),
     include_package_data=True,
     package_data={

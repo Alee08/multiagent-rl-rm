@@ -367,20 +367,18 @@ All algorithms live in `multiagent_rlrm/learning_algorithms` and expose a common
 If you use this project in academic work, please cite it.
 
 - **Concept DOI (always points to the latest version):** https://doi.org/10.5281/zenodo.17951631
-- **Version DOI (v0.2.0):** https://doi.org/10.5281/zenodo.17951632
 
 This repository ships a `CITATION.cff` file, so GitHub can generate citations automatically via the **“Cite this repository”** button.
 
 ```bibtex
-@software{alessandro_trapasso_2025_17951632,
+@software{multiagent_rl_rm,
   author       = {Alessandro Trapasso},
   title        = {multiagent-rl-rm: Multi-Agent Reinforcement Learning with Reward Machines},
-  month        = dec,
-  year         = 2025,
+  year         = 2026,
   publisher    = {Zenodo},
-  version      = {v0.2.0},
-  doi          = {10.5281/zenodo.17951632},
-  url          = {https://doi.org/10.5281/zenodo.17951632},
+  version      = {v0.3.0},
+  doi          = {10.5281/zenodo.17951631},
+  url          = {https://doi.org/10.5281/zenodo.17951631},
 }
 ```
 ## License
