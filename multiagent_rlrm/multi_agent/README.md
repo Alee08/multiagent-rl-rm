@@ -44,6 +44,10 @@ Main methods used by the training scripts:
 - `ActionRL` (`action_rl.py`): lightweight action object (`name`, optional preconditions/effects).
 - `ActionEncoder` (`action_encoder.py`): abstract interface to register the agent’s actions via `build_actions()`.
 - `StateEncoder` (`state_encoder.py`): abstract interface to encode a state; includes `encode_rm_state(...)` helper that converts RM state labels to indices.
+- `BucketStateEncoder` (`bucket_state_encoder.py`): generic encoder for continuous
+  observations. It maps selected numeric features into finite buckets and can
+  append the detected RM event label to the bucket state, preventing one bucket
+  from mixing states that trigger different automaton transitions.
 
 Environment-specific encoders live in the environment folders (e.g., `environments/office_world/state_encoder_office.py`).
 
@@ -111,4 +115,3 @@ For complete working examples, see:
 
 - CLI (`rmgen`): `../cli/README.md`
 - RM generation library: `../rmgen/README.md`
-
