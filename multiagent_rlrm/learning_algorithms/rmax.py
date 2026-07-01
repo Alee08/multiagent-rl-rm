@@ -158,6 +158,7 @@ class RMax(BaseLearningAlgorithm):
                 self.q_table[next_state, :] = 0
                 self.transitions[next_state, :, :] = 0
                 self.transitions[next_state, :, next_state] = self.s_a_threshold
+                self.s_a_counts[next_state, :] = self.s_a_threshold
             if self.s_a_counts[state][action] < self.s_a_threshold:
                 self.rewards[state][action] += reward
                 self.s_a_counts[state][action] += 1

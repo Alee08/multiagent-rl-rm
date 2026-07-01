@@ -183,7 +183,7 @@ def test_qrm_baseline_runs_on_continuous_corridor_task():
     assert summary["event_count_means"]["B"] > 0
 
 
-def test_plain_bucket_qrmax_is_not_robust_on_continuous_corridor_task():
+def test_event_label_ablation_changes_continuous_corridor_performance():
     summary = run_bucket_qrmax_sweep(
         seeds=range(1700, 1704),
         include_event_label=False,

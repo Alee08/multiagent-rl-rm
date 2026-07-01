@@ -16,7 +16,7 @@ def test_event_aware_bucket_qrmax_solves_continuous_line_task():
     assert summary["average_length_mean"] < 10
 
 
-def test_plain_bucket_qrmax_fails_when_bucket_mixes_rm_events():
+def test_event_label_ablation_separates_mixed_rm_event_bucket():
     summary = run_bucket_qrmax_sweep(
         seeds=range(1300, 1305),
         include_event_label=False,

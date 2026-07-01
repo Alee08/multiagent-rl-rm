@@ -46,3 +46,18 @@ def test_rmax_applies_qrm_experiences_when_enabled():
     # Both main and qrm experience should increment counts
     assert rmax.s_a_counts[0, 0] == 1
     assert rmax.s_a_counts[1, 0] == 1
+
+
+def test_rmax_terminal_next_state_is_absorbing_known_state():
+    rmax = RMax(
+        state_space_size=2,
+        action_space_size=2,
+        gamma=0.9,
+        s_a_threshold=1,
+        max_reward=1.0,
+    )
+
+    rmax.update(state=0, next_state=1, action=0, reward=0.0, terminated=True)
+
+    assert np.all(rmax.s_a_counts[1, :] == rmax.s_a_threshold)
+    assert np.all(rmax.transitions[1, :, 1] == rmax.s_a_threshold)
