@@ -10,8 +10,7 @@ Reward Machine gives reward after the ordered sequence `A -> B`, where `A` and
 
 The task is intentionally still small. Its purpose is to check that QR-MAX can
 handle a 2D finite abstraction when the abstraction preserves RM events. With
-the default `10 x 4` buckets, event-aware buckets solve the task robustly. The
-non-event-aware setting is available as a controlled ablation of the event label.
+the default `10 x 4` buckets, event-aware buckets solve the task robustly.
 
 The runner also exposes controlled stress cases:
 
@@ -30,17 +29,6 @@ Run the event-aware QR-MAX check:
 python -m multiagent_rlrm.environments.continuous_corridor.bucket_qrmax_experiment \
   --algorithm QRMAX \
   --event-aware \
-  --buckets-x 10 \
-  --buckets-y 4 \
-  --threshold 8 \
-  --seeds 1700:1705
-```
-
-Run the corresponding non-event-aware bucket comparison:
-
-```bash
-python -m multiagent_rlrm.environments.continuous_corridor.bucket_qrmax_experiment \
-  --algorithm QRMAX \
   --buckets-x 10 \
   --buckets-y 4 \
   --threshold 8 \

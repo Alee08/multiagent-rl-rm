@@ -23,19 +23,8 @@ python -m multiagent_rlrm.environments.continuous_line.bucket_qrmax_experiment \
   --seeds 1500:1520
 ```
 
-Run the corresponding non-event-aware bucket comparison:
-
-```bash
-python -m multiagent_rlrm.environments.continuous_line.bucket_qrmax_experiment \
-  --algorithm QRMAX \
-  --buckets 10 \
-  --threshold 8 \
-  --seeds 1500:1520
-```
-
 Expected pattern:
 
 - event-aware buckets solve the task with the same bucket count;
-- the non-event-aware setting is included as an ablation of the event label;
 - sufficiently fine buckets may also work empirically, but event labels provide
   a direct consistency check for RM events.
