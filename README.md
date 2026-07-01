@@ -15,8 +15,8 @@ research projects:
 
 | Venue | Publication | Repository |
 | --- | --- | --- |
-| ECAI 2025 | [Concurrent Multiagent Reinforcement Learning with Reward Machines](https://ebooks.iospress.nl/volumearticle/76189) | This library/package. |
-| IJCAI-ECAI 2026 | [Model-Based Reinforcement Learning in Discrete-Action Non-Markovian Reward Decision Processes](https://arxiv.org/abs/2512.14617) | [QR-MAX reproducibility package](https://github.com/Alee08/qrmax). |
+| [ECAI 2025](https://ecai2025.org/) | [Concurrent Multiagent Reinforcement Learning with Reward Machines](https://ebooks.iospress.nl/volumearticle/76189) | [MAPRL](https://github.com/Alee08/maprl). |
+| [IJCAI-ECAI 2026](https://2026.ijcai.org/) | [Model-Based Reinforcement Learning in Discrete-Action Non-Markovian Reward Decision Processes](https://arxiv.org/abs/2512.14617) | [QR-MAX reproducibility package](https://github.com/Alee08/qrmax). |
 
 ## Installation
 
