@@ -8,12 +8,12 @@
 
 The Multi-Agent RLRM (Reinforcement Learning with Reward Machines) Framework is a library designed to facilitate the formulation of multi-agent problems and solve them through reinforcement learning. The framework supports the integration of Reward Machines (RMs), providing a modular and flexible structure for defining complex tasks through a set of objectives and rules.
 
-## Publications and Artifacts
+## Publications Using This Repository
 
 This repository provides the shared implementation used by the following
-research artifacts:
+research projects:
 
-| Venue | Publication | Artifact |
+| Venue | Publication | Repository |
 | --- | --- | --- |
 | ECAI 2025 | [Concurrent Multiagent Reinforcement Learning with Reward Machines](https://ebooks.iospress.nl/volumearticle/76189) | This library/package. |
 | IJCAI-ECAI 2026 | [Model-Based Reinforcement Learning in Discrete-Action Non-Markovian Reward Decision Processes](https://arxiv.org/abs/2512.14617) | [QR-MAX reproducibility package](https://github.com/Alee08/qrmax). |
