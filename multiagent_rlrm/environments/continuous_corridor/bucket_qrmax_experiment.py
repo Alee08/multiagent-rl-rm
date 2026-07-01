@@ -75,20 +75,24 @@ class ContinuousCorridorSequence:
         step_size: float = 0.025,
         noise_std: float = 0.003,
         horizon: int = 80,
+        reset_x_range: Tuple[float, float] = (0.45, 0.55),
+        reset_y_range: Tuple[float, float] = (0.42, 0.58),
     ):
         self.rng = np.random.default_rng(seed)
         self.event_detector = event_detector or CorridorEventDetector()
         self.step_size = step_size
         self.noise_std = noise_std
         self.horizon = horizon
+        self.reset_x_range = reset_x_range
+        self.reset_y_range = reset_y_range
         self.x = 0.5
         self.y = 0.5
         self.q_idx = 0
         self.steps = 0
 
     def reset(self):
-        self.x = float(self.rng.uniform(0.45, 0.55))
-        self.y = float(self.rng.uniform(0.42, 0.58))
+        self.x = float(self.rng.uniform(*self.reset_x_range))
+        self.y = float(self.rng.uniform(*self.reset_y_range))
         self.q_idx = 0
         self.steps = 0
         return {"x": self.x, "y": self.y}, self.q_idx
@@ -240,6 +244,10 @@ def run_bucket_qrmax_trial(
     step_size: float = 0.025,
     noise_std: float = 0.003,
     horizon: int = 80,
+    reset_x_low: float = 0.45,
+    reset_x_high: float = 0.55,
+    reset_y_low: float = 0.42,
+    reset_y_high: float = 0.58,
 ) -> BucketQRMaxTrialResult:
     event_detector = CorridorEventDetector()
     encoder = make_encoder(
@@ -254,6 +262,8 @@ def run_bucket_qrmax_trial(
         step_size=step_size,
         noise_std=noise_std,
         horizon=horizon,
+        reset_x_range=(reset_x_low, reset_x_high),
+        reset_y_range=(reset_y_low, reset_y_high),
     )
     algo = _make_algorithm(algorithm, encoder, threshold, seed)
 
@@ -298,6 +308,8 @@ def run_bucket_qrmax_trial(
                 step_size=step_size,
                 noise_std=noise_std,
                 horizon=horizon,
+                reset_x_range=(reset_x_low, reset_x_high),
+                reset_y_range=(reset_y_low, reset_y_high),
             )
             success_rate, _ = _evaluate_policy(algo, encoder, eval_env, 20)
             if success_rate == 1.0:
@@ -309,6 +321,8 @@ def run_bucket_qrmax_trial(
         step_size=step_size,
         noise_std=noise_std,
         horizon=horizon,
+        reset_x_range=(reset_x_low, reset_x_high),
+        reset_y_range=(reset_y_low, reset_y_high),
     )
     success_rate, average_length = _evaluate_policy(
         algo, encoder, eval_env, eval_episodes
@@ -382,6 +396,10 @@ def main(argv=None):
     parser.add_argument("--buckets-y", type=int, default=4)
     parser.add_argument("--threshold", type=int, default=8)
     parser.add_argument("--noise-std", type=float, default=0.003)
+    parser.add_argument("--reset-x-low", type=float, default=0.45)
+    parser.add_argument("--reset-x-high", type=float, default=0.55)
+    parser.add_argument("--reset-y-low", type=float, default=0.42)
+    parser.add_argument("--reset-y-high", type=float, default=0.58)
     parser.add_argument("--train-episodes", type=int, default=300)
     parser.add_argument("--eval-episodes", type=int, default=100)
     parser.add_argument(
@@ -399,6 +417,10 @@ def main(argv=None):
         buckets_y=args.buckets_y,
         threshold=args.threshold,
         noise_std=args.noise_std,
+        reset_x_low=args.reset_x_low,
+        reset_x_high=args.reset_x_high,
+        reset_y_low=args.reset_y_low,
+        reset_y_high=args.reset_y_high,
         train_episodes=args.train_episodes,
         eval_episodes=args.eval_episodes,
     )

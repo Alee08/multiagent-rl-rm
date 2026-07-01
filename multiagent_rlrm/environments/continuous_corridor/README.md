@@ -35,3 +35,19 @@ python -m multiagent_rlrm.environments.continuous_corridor.bucket_qrmax_experime
   --threshold 8 \
   --seeds 1700:1705
 ```
+
+Run the harder reset/noise check:
+
+```bash
+python -m multiagent_rlrm.environments.continuous_corridor.bucket_qrmax_experiment \
+  --algorithm QRMAX \
+  --event-aware \
+  --buckets-x 10 \
+  --buckets-y 6 \
+  --threshold 18 \
+  --noise-std 0.006 \
+  --reset-y-low 0.10 \
+  --reset-y-high 0.90 \
+  --train-episodes 400 \
+  --seeds 1810:1820
+```

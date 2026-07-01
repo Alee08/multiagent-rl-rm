@@ -44,6 +44,20 @@ def test_continuous_corridor_event_aware_encoder_splits_same_bucket():
     )
 
 
+def test_continuous_corridor_reset_ranges_are_configurable():
+    env = ContinuousCorridorSequence(
+        seed=2,
+        reset_x_range=(0.48, 0.49),
+        reset_y_range=(0.10, 0.90),
+    )
+
+    for _ in range(20):
+        state, q_idx = env.reset()
+        assert 0.48 <= state["x"] <= 0.49
+        assert 0.10 <= state["y"] <= 0.90
+        assert q_idx == 0
+
+
 def test_event_aware_bucket_qrmax_solves_continuous_corridor_task():
     summary = run_bucket_qrmax_sweep(
         seeds=range(1700, 1704),
