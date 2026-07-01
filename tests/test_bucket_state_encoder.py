@@ -79,6 +79,23 @@ def test_bucket_state_encoder_rejects_unknown_event_labels():
         encoder.encode({"x": 0.60}, "q0")
 
 
+def test_bucket_state_encoder_supports_nonuniform_edges():
+    encoder = BucketStateEncoder(
+        DummyAgent(),
+        features=["x"],
+        lows=[0.0],
+        highs=[1.0],
+        buckets=[2],
+        bucket_edges=[[0.0, 0.35, 0.45, 1.0]],
+    )
+
+    assert encoder.buckets == (3,)
+    assert encoder.bucket_tuple({"x": 0.20}) == (0,)
+    assert encoder.bucket_tuple({"x": 0.35}) == (1,)
+    assert encoder.bucket_tuple({"x": 0.44}) == (1,)
+    assert encoder.bucket_tuple({"x": 0.45}) == (2,)
+
+
 def test_event_aware_buckets_preserve_qrmax_rm_transition_determinism():
     plain = make_encoder(include_event_label=False)
     event_aware = make_encoder(include_event_label=True)
